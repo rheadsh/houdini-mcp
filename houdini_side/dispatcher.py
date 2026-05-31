@@ -9,12 +9,13 @@ In headless/test contexts (hou.isUIAvailable() is False),
 the callable is executed inline on the calling thread.
 """
 import threading
-import traceback
+from typing import Optional, Any
 
 try:
-    import hou
+    import hou as hou  # type: ignore[import-untyped]  # noqa: PLC0414
     _HOU_AVAILABLE = True
 except ImportError:
+    hou = None  # type: ignore[assignment]
     _HOU_AVAILABLE = False
 
 
@@ -23,11 +24,11 @@ def dispatch(fn):
     Execute fn() on Houdini's main thread and return its result.
     Raises any exception fn() raises.
     """
-    if not _HOU_AVAILABLE or not hou.isUIAvailable():
+    if not _HOU_AVAILABLE or hou is None or not hou.isUIAvailable():
         return fn()
 
-    result_holder = [None]
-    exc_holder = [None]
+    result_holder: list[Any] = [None]
+    exc_holder: list[Optional[Exception]] = [None]
     done = threading.Event()
 
     def _callback():
