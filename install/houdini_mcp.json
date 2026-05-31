@@ -1,0 +1,9 @@
+{
+    "name": "houdini-mcp",
+    "path": "$HOUDINI_MCP_ROOT/houdini_side",
+    "env": [
+        { "HOUDINI_MCP_PORT": { "value": "9876" } },
+        { "HOUDINI_MCP_ROOT": { "value": "$HOME/houdini-mcp" } }
+    ],
+    "houdini456": [ "$HOUDINI_MCP_ROOT/houdini_side/startup.py" ]
+}
