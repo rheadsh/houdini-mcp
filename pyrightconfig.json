@@ -1,5 +1,7 @@
 {
+    "extraPaths": ["."],
     "exclude": ["tests/"],
     "reportMissingModuleSource": false,
-    "reportMissingImports": false
+    "reportMissingImports": false,
+    "reportUnusedImport": false
 }
