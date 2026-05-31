@@ -52,6 +52,69 @@ def _hda_info(hda_node_type: str):
         return err(e)
 
 
+def _hda_versions(hda_node_type: "str | None" = None):
+    try:
+        def work():
+            hda = getattr(hou, 'hda', None)
+            versions = []
+            seen = set()
+
+            if hda is not None:
+                for hda_file in hda.loadedFiles():
+                    try:
+                        definitions = hda.definitionsInFile(hda_file)
+                    except Exception:
+                        continue
+                    for defn in definitions:
+                        try:
+                            node_type = defn.nodeTypeName()
+                        except Exception:
+                            node_type = ""
+                        if hda_node_type and node_type != hda_node_type:
+                            continue
+                        item = {
+                            "file": hda_file,
+                            "node_type": node_type,
+                            "label": getattr(defn, "description", lambda: "")(),
+                            "version": getattr(defn, "version", lambda: "")(),
+                            "is_preferred": bool(getattr(defn, "isPreferred", lambda: False)()),
+                        }
+                        key = (item["file"], item["node_type"], item["version"])
+                        if key not in seen:
+                            seen.add(key)
+                            versions.append(item)
+
+            if hda_node_type and not versions:
+                for cat_fn in [hou.sopNodeTypeCategory, hou.objNodeTypeCategory,
+                               hou.dopNodeTypeCategory, hou.lopNodeTypeCategory]:
+                    try:
+                        defn = hou.hdaDefinition(cat_fn(), hda_node_type, None)
+                    except Exception:
+                        continue
+                    if defn is None:
+                        continue
+                    item = {
+                        "file": getattr(defn, "libraryFilePath", lambda: "")(),
+                        "node_type": getattr(defn, "nodeTypeName", lambda: hda_node_type)(),
+                        "label": getattr(defn, "description", lambda: "")(),
+                        "version": getattr(defn, "version", lambda: "")(),
+                        "is_preferred": bool(getattr(defn, "isPreferred", lambda: False)()),
+                    }
+                    key = (item["file"], item["node_type"], item["version"])
+                    if key not in seen:
+                        versions.append(item)
+                    break
+
+            return ok({
+                "node_type": hda_node_type,
+                "versions": versions,
+                "count": len(versions),
+            })
+        return dispatch(work, label="hda_versions")
+    except Exception as e:
+        return err(e)
+
+
 def _hda_install(hda_path: str):
     try:
         def work():
@@ -194,6 +257,11 @@ def register(app):
     async def hda_info(hda_node_type: str) -> list:
         """Get HDA definition info: sections, label, version."""
         return [{"type": "text", "text": json.dumps(_hda_info(hda_node_type))}]
+
+    @app.tool("hda_versions")
+    async def hda_versions(hda_node_type: "str | None" = None) -> list:
+        """List loaded HDA versions, optionally filtered by node type."""
+        return [{"type": "text", "text": json.dumps(_hda_versions(hda_node_type))}]
 
     @app.tool("hda_install")
     async def hda_install(hda_path: str) -> list:

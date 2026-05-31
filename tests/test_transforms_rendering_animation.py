@@ -287,6 +287,78 @@ def test_rop_render_calls_render(mock_hou):
     result = _rop_render("/out/mantra1", frame_range=[1, 10], step=1.0)
     assert result["success"] is True
     assert len(render_calls) == 1
+    assert result["data"]["step"] == 1.0
+    assert result["data"]["render_kwargs"]["frame_range"] == (1.0, 10.0, 1.0)
+
+
+def test_rop_render_rejects_bad_frame_range(mock_hou):
+    from houdini_side.tools.rendering import _rop_render
+    result = _rop_render("/out/mantra1", frame_range=[10, 1], step=1.0)
+    assert result["success"] is False
+    assert "end" in result["error"].lower()
+
+
+def test_rop_render_rejects_bad_step(mock_hou):
+    from houdini_side.tools.rendering import _rop_render
+    result = _rop_render("/out/mantra1", frame_range=[1, 10], step=0)
+    assert result["success"] is False
+    assert "step" in result["error"].lower()
+
+
+def test_rop_render_verbose_includes_output(mock_hou):
+    import types as _t
+    parm = _t.SimpleNamespace(eval=lambda: "/render/beauty.exr")
+    render_calls = []
+    node = _t.SimpleNamespace(
+        render=lambda **kwargs: render_calls.append(kwargs),
+        parm=lambda name: parm if name == "vm_picture" else None,
+    )
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.rendering import _rop_render
+    result = _rop_render("/out/mantra1", frame_range=[1, 2], verbose=True)
+    assert result["success"] is True
+    assert result["data"]["output"] == "/render/beauty.exr"
+    assert render_calls[0]["verbose"] is True
+    assert render_calls[0]["output_progress"] is True
+
+
+def test_rop_render_start_nonblocking_job(mock_hou):
+    import types as _t
+    render_calls = []
+    node = _t.SimpleNamespace(
+        render=lambda **kwargs: render_calls.append(kwargs),
+        isCooking=lambda: True,
+    )
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.rendering import _rop_render_start, _rop_render_job_status
+    result = _rop_render_start("/out/mantra1", frame_range=[1, 3])
+    assert result["success"] is True
+    assert result["data"]["status"] == "running"
+    assert result["data"]["nonblocking_arg"] == {"block": False}
+    assert "job_id" in result["data"]
+
+    status = _rop_render_job_status(result["data"]["job_id"])
+    assert status["success"] is True
+    assert status["data"]["is_cooking"] is True
+
+
+def test_rop_render_start_falls_back_to_blocking_metadata(mock_hou):
+    import types as _t
+    render_calls = []
+
+    def render(**kwargs):
+        if "block" in kwargs or "blocking" in kwargs:
+            raise TypeError("unsupported keyword")
+        render_calls.append(kwargs)
+
+    node = _t.SimpleNamespace(render=render)
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.rendering import _rop_render_start
+    result = _rop_render_start("/out/mantra1", frame_range=[1, 2], step=1)
+    assert result["success"] is True
+    assert result["data"]["status"] == "completed"
+    assert result["data"]["mode"] == "blocking"
+    assert render_calls == [{"frame_range": (1.0, 2.0, 1.0)}]
 
 
 def test_rop_render_node_not_found(mock_hou):

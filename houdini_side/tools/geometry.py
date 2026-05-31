@@ -1,6 +1,10 @@
 """SOP geometry inspection and export tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import resolve_output_path
+
+
+_GEO_SUFFIXES = (".bgeo", ".bgeo.sc", ".obj", ".fbx", ".usd", ".usda", ".usdc")
 
 
 def _geo_info(sop_path: str):
@@ -181,8 +185,9 @@ def _geo_save(sop_path: str, file_path: str):
             geo = node.geometry()
             if geo is None:
                 raise ValueError(f"No cooked geometry on node: {sop_path!r}")
-            geo.save(file_path)
-            return ok({"saved_to": file_path})
+            safe_path = resolve_output_path(hou, file_path, _GEO_SUFFIXES)
+            geo.save(safe_path)
+            return ok({"saved_to": safe_path})
         return dispatch(work, label="geo_save")
     except Exception as e:
         return err(e)

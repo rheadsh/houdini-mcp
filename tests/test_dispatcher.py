@@ -18,6 +18,13 @@ def test_dispatch_runs_callable():
     assert result == 42
 
 
+def test_dispatch_annotates_success_response():
+    result = dispatch(lambda: ok({"value": 42}), label="unit_tool")
+    assert result["success"] is True
+    assert result["meta"]["tool"] == "unit_tool"
+    assert isinstance(result["meta"]["duration_ms"], float)
+
+
 def test_dispatch_propagates_exception():
     """dispatch() re-raises any exception raised inside the callable."""
     def boom():

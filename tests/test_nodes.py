@@ -34,6 +34,8 @@ def _make_node(path="/obj/geo1", node_type="geo", children=None, inputs=None):
     n.cook = lambda force=False: None
     n.createNode = lambda t, name=None: _make_node(f"{path}/{name or t}", t)
     n.setInput = lambda idx, src, out=0: None
+    n.parm = lambda name: None
+    n.parmTuple = lambda name: None
     n.createNetworkBox = lambda: types.SimpleNamespace(
         setComment=lambda s: None,
         setColor=lambda c: None,
@@ -90,6 +92,37 @@ def test_node_create_calls_createNode(mock_hou):
     assert len(created) == 1
 
 
+def test_node_create_many_sets_position_and_parms(mock_hou):
+    created = []
+    parm_sets = []
+    positions = []
+
+    def create_node(node_type, name=None):
+        child = _make_node(f"/obj/{name or node_type}", node_type)
+        child.setPosition = lambda pos: positions.append((pos[0], pos[1]))
+        child.parm = lambda parm_name: types.SimpleNamespace(
+            set=lambda value: parm_sets.append((child.path(), parm_name, value))
+        )
+        created.append(child)
+        return child
+
+    parent = _make_node("/obj")
+    parent.createNode = create_node
+    mock_hou.node = lambda path: parent if path == "/obj" else None
+
+    from houdini_side.tools.nodes import _node_create_many
+    result = _node_create_many("/obj", [
+        {"node_type": "geo", "name": "geoA", "position": [1.0, 2.0], "parms": {"tx": 3.0}},
+        {"node_type": "null"},
+    ])
+
+    assert result["success"] is True
+    assert result["data"]["count"] == 2
+    assert [n.name() for n in created] == ["geoA", "null"]
+    assert positions == [(1.0, 2.0)]
+    assert parm_sets == [("/obj/geoA", "tx", 3.0)]
+
+
 def test_node_delete_calls_destroy(mock_hou):
     destroyed = []
     node = _make_node("/obj/geo1")
@@ -111,6 +144,26 @@ def test_node_connect_calls_setInput(mock_hou):
     result = _node_connect("/obj/geo1", 0, "/obj/geo2", 0)
     assert result["success"] is True
     assert calls[0] == (0, src, 0)
+
+
+def test_node_connect_many_calls_setInput_for_each(mock_hou):
+    calls = []
+    src1 = _make_node("/obj/src1")
+    src2 = _make_node("/obj/src2")
+    dst = _make_node("/obj/dst")
+    dst.setInput = lambda idx, node, out=0: calls.append((idx, node.path(), out))
+    nodes = {n.path(): n for n in (src1, src2, dst)}
+    mock_hou.node = lambda p: nodes.get(p)
+
+    from houdini_side.tools.nodes import _node_connect_many
+    result = _node_connect_many([
+        {"from_path": "/obj/src1", "from_output": 0, "to_path": "/obj/dst", "to_input": 0},
+        {"from_path": "/obj/src2", "from_output": 1, "to_path": "/obj/dst", "to_input": 2},
+    ])
+
+    assert result["success"] is True
+    assert result["data"]["count"] == 2
+    assert calls == [(0, "/obj/src1", 0), (2, "/obj/src2", 1)]
 
 
 def test_node_bypass_calls_bypass(mock_hou):
@@ -140,3 +193,32 @@ def test_node_type_list_unknown_context(mock_hou):
     result = _node_type_list("badcontext")
     assert result["success"] is False
     assert "unknown" in result["error"].lower()
+
+
+def test_node_type_info_returns_available_metadata(mock_hou):
+    parm_template = types.SimpleNamespace(
+        name=lambda: "tx",
+        label=lambda: "Translate X",
+        type=lambda: "Float",
+        numComponents=lambda: 1,
+    )
+    node_type = types.SimpleNamespace(
+        name=lambda: "box",
+        description=lambda: "Box",
+        minNumInputs=lambda: 0,
+        maxNumInputs=lambda: 1,
+        category=lambda: types.SimpleNamespace(name=lambda: "Sop"),
+        parmTemplateGroup=lambda: types.SimpleNamespace(entries=lambda: [parm_template]),
+    )
+    cat = types.SimpleNamespace(nodeTypes=lambda: {"box": node_type}, name=lambda: "Sop")
+    mock_hou.sopNodeTypeCategory = lambda: cat
+
+    from houdini_side.tools.nodes import _node_type_info
+    result = _node_type_info("sop", "box")
+
+    assert result["success"] is True
+    assert result["data"]["name"] == "box"
+    assert result["data"]["label"] == "Box"
+    assert result["data"]["min_inputs"] == 0
+    assert result["data"]["max_inputs"] == 1
+    assert result["data"]["parm_templates"][0]["name"] == "tx"

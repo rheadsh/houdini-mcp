@@ -1,72 +1,117 @@
 #Requires -Version 5.0
 <#
 .SYNOPSIS
-    houdini-mcp setup for Windows (PowerShell)
+    Production-ready houdini-mcp setup for Windows.
 
 .DESCRIPTION
-    Finds hython.exe, installs the MCP SDK into Houdini's Python environment,
-    and prints next steps for package installation.
+    Finds hython.exe, installs runtime dependencies into Houdini's Python,
+    resolves HOUDINI_USER_PREF_DIR, and writes the Houdini package descriptor
+    with the current repository path.
 
 .EXAMPLE
-    # From the houdini-mcp repo root:
+    powershell -ExecutionPolicy Bypass -File install\setup.ps1
+
+.EXAMPLE
+    $env:HYTHON = "C:\Program Files\Side Effects Software\Houdini 21.0.000\bin\hython.exe"
     powershell -ExecutionPolicy Bypass -File install\setup.ps1
 #>
+
+param(
+    [string]$Hython = $env:HYTHON,
+    [string]$RepoRoot = ""
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# --- 1. Find hython ---
-$hython = $null
+function Resolve-Hython {
+    param([string]$Requested)
 
-# Check PATH first
-$inPath = Get-Command hython -ErrorAction SilentlyContinue
-if ($inPath) {
-    $hython = $inPath.Source
-}
+    if ($Requested) {
+        if (Test-Path $Requested) {
+            return (Resolve-Path $Requested).Path
+        }
+        throw "HYTHON path does not exist: $Requested"
+    }
 
-# Search common Houdini installation directories
-if (-not $hython) {
+    $inPath = Get-Command hython -ErrorAction SilentlyContinue
+    if ($inPath) {
+        return $inPath.Source
+    }
+
     $searchRoots = @(
         "C:\Program Files\Side Effects Software",
         "C:\Program Files (x86)\Side Effects Software"
     )
     foreach ($root in $searchRoots) {
-        if (Test-Path $root) {
-            $candidate = Get-ChildItem -Path $root -Filter "hython.exe" -Recurse -ErrorAction SilentlyContinue |
-                         Sort-Object -Property FullName -Descending |  # newest version first
-                         Select-Object -First 1
-            if ($candidate) {
-                $hython = $candidate.FullName
-                break
-            }
+        if (-not (Test-Path $root)) {
+            continue
+        }
+        $candidate = Get-ChildItem -Path $root -Filter "hython.exe" -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object -Property FullName -Descending |
+            Select-Object -First 1
+        if ($candidate) {
+            return $candidate.FullName
         }
     }
-}
 
-if (-not $hython) {
-    Write-Error @"
+    throw @"
 hython.exe not found.
-  - Add Houdini's bin\ directory to PATH, or
+  - Add Houdini's bin directory to PATH, or
   - Set `$env:HYTHON to the full path of hython.exe before running this script.
-  Expected location: C:\Program Files\Side Effects Software\Houdini X.X.XXX\bin\hython.exe
 "@
-    exit 1
 }
 
-Write-Host "Using hython: $hython"
+function Convert-ToForwardSlashPath {
+    param([string]$Path)
+    return $Path.Replace("\", "/")
+}
 
-# --- 2. Install MCP SDK ---
-& $hython -m pip install "mcp>=1.0.0" --upgrade
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $RepoRoot) {
+    $RepoRoot = Resolve-Path (Join-Path $scriptDir "..")
+}
+$RepoRoot = (Resolve-Path $RepoRoot).Path
+$repoRootJson = Convert-ToForwardSlashPath $RepoRoot
+
+$hythonPath = Resolve-Hython $Hython
+Write-Host "Using hython: $hythonPath"
+Write-Host "Repo root: $RepoRoot"
+
+$requirements = Join-Path $RepoRoot "requirements.txt"
+if (-not (Test-Path $requirements)) {
+    throw "Runtime requirements file not found: $requirements"
+}
+
+& $hythonPath -m pip install -r $requirements --upgrade
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "pip install failed (exit code $LASTEXITCODE)."
-    exit 1
+    throw "pip install failed with exit code $LASTEXITCODE"
 }
 
+$prefDirRaw = & $hythonPath -c "import hou; print(hou.getenv('HOUDINI_USER_PREF_DIR') or '')"
+$prefDir = (($prefDirRaw | Select-Object -First 1) -as [string]).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $prefDir) {
+    throw "HOUDINI_USER_PREF_DIR could not be resolved from hython. Start Houdini once for this user, then rerun setup."
+}
+
+$packagesDir = Join-Path $prefDir "packages"
+New-Item -ItemType Directory -Path $packagesDir -Force | Out-Null
+
+$packageFile = Join-Path $packagesDir "houdini_mcp.json"
+$package = [ordered]@{
+    name = "houdini-mcp"
+    path = "$repoRootJson/houdini_side"
+    pythonpath = $repoRootJson
+    env = @(
+        @{ HOUDINI_MCP_PORT = @{ value = "9876" } }
+        @{ HOUDINI_MCP_DISPATCH_TIMEOUT = @{ value = "30" } }
+        @{ HOUDINI_MCP_ROOT = @{ value = $repoRootJson } }
+    )
+    houdini456 = @("$repoRootJson/houdini_side/startup.py")
+}
+
+$package | ConvertTo-Json -Depth 8 | Set-Content -Path $packageFile -Encoding UTF8
+
 Write-Host ""
-Write-Host "Done. MCP SDK installed into Houdini Python." -ForegroundColor Green
-Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Cyan
-Write-Host "  1. Copy install\houdini_mcp_windows.json to:"
-Write-Host "       $env:HOUDINI_USER_PREF_DIR\packages\houdini_mcp.json"
-Write-Host "  2. Edit the file and set HOUDINI_MCP_ROOT to the absolute path of this repo"
-Write-Host "  3. Restart Houdini"
+Write-Host "Installed Houdini package: $packageFile" -ForegroundColor Green
+Write-Host "Done. Restart Houdini, then use Shelf -> Houdini MCP -> Start MCP Server."

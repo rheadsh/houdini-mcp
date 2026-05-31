@@ -59,6 +59,16 @@ def test_path_list(mock_hou):
     assert "/hfs" in result["data"]["paths"]
 
 
+def test_houdini_env_diagnostics(mock_hou):
+    mock_hou.houdiniPath = lambda: ["/hfs"]
+    mock_hou.getenv = lambda k, default=None: "9876" if k == "HOUDINI_MCP_PORT" else default
+    from houdini_side.tools.utils import _houdini_env_diagnostics
+    result = _houdini_env_diagnostics()
+    assert result["success"] is True
+    assert result["data"]["houdini"]["version"] == "20.5.000"
+    assert result["data"]["env"]["HOUDINI_MCP_PORT"] == "9876"
+
+
 # --- HDA tests ---
 
 def test_hda_list_returns_empty_when_unavailable(mock_hou):

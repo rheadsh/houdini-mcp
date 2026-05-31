@@ -1,4 +1,8 @@
 """ROP rendering tools."""
+import threading
+import time
+import uuid
+
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
 
@@ -12,6 +16,90 @@ _OUTPUT_PARMS = [
     "RS_outputFileNamePrefix",  # Redshift
     "ar_picture",               # Arnold (HtoA)
 ]
+
+
+_RENDER_JOBS = {}
+_RENDER_JOBS_LOCK = threading.Lock()
+
+
+def _now():
+    return time.time()
+
+
+def _job_update(job_id: str, **updates):
+    with _RENDER_JOBS_LOCK:
+        job = _RENDER_JOBS.setdefault(job_id, {"job_id": job_id})
+        job.update(updates)
+        return dict(job)
+
+
+def _job_snapshot(job_id: str):
+    with _RENDER_JOBS_LOCK:
+        job = _RENDER_JOBS.get(job_id)
+        return dict(job) if job else None
+
+
+def _normalize_frame_range(frame_range, step: float):
+    try:
+        step = float(step)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("step must be a positive number") from exc
+    if step <= 0:
+        raise ValueError("step must be a positive number")
+
+    if frame_range is None:
+        return None, step
+    if not isinstance(frame_range, (list, tuple)) or len(frame_range) != 2:
+        raise ValueError("frame_range must be [start, end]")
+    try:
+        start = float(frame_range[0])
+        end = float(frame_range[1])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("frame_range values must be numbers") from exc
+    if end < start:
+        raise ValueError("frame_range end must be >= start")
+    return [start, end], step
+
+
+def _render_args(frame_range, step: float, verbose: bool = False):
+    kwargs = {}
+    if frame_range is not None:
+        kwargs["frame_range"] = (frame_range[0], frame_range[1], step)
+    if verbose:
+        kwargs["verbose"] = True
+        kwargs["output_progress"] = True
+    return kwargs
+
+
+def _node_output(node):
+    for parm_name in _OUTPUT_PARMS:
+        parm = node.parm(parm_name)
+        if parm is not None:
+            return {"output": parm.eval(), "parm": parm_name}
+    return {"output": None, "parm": None}
+
+
+def _render_metadata(rop_path: str, frame_range, step: float, verbose: bool,
+                     mode: str):
+    return {
+        "path": rop_path,
+        "frame_range": frame_range,
+        "step": step,
+        "verbose": bool(verbose),
+        "mode": mode,
+    }
+
+
+def _call_render(node, frame_range, step: float, verbose: bool = False,
+                 extra_kwargs=None):
+    kwargs = _render_args(frame_range, step, verbose)
+    if extra_kwargs:
+        kwargs.update(extra_kwargs)
+    if kwargs:
+        node.render(**kwargs)
+    else:
+        node.render()
+    return kwargs
 
 
 def _rop_list(network_path: str = "/out"):
@@ -33,19 +121,98 @@ def _rop_list(network_path: str = "/out"):
 
 
 def _rop_render(rop_path: str, frame_range: "list | None" = None,
-                step: float = 1.0):
+                step: float = 1.0, verbose: bool = False):
     try:
+        frame_range, step = _normalize_frame_range(frame_range, step)
+
         def work():
             node = hou.node(rop_path)
             if node is None:
                 raise ValueError(f"ROP not found: {rop_path!r}")
-            if frame_range and len(frame_range) == 2:
-                node.render(frame_range=(frame_range[0], frame_range[1], step))
-            else:
-                node.render()
-            return ok({"rendered": rop_path,
-                       "frame_range": frame_range})
+            started = _now()
+            render_kwargs = _call_render(node, frame_range, step, verbose)
+            data = _render_metadata(rop_path, frame_range, step, verbose,
+                                    "blocking")
+            data.update({
+                "rendered": rop_path,
+                "render_kwargs": dict(render_kwargs),
+                "started_at": started,
+                "finished_at": _now(),
+            })
+            if verbose:
+                data.update(_node_output(node))
+            return ok(data)
         return dispatch(work, label="rop_render")
+    except Exception as e:
+        return err(e)
+
+
+def _rop_render_start(rop_path: str, frame_range: "list | None" = None,
+                      step: float = 1.0, verbose: bool = False):
+    try:
+        frame_range, step = _normalize_frame_range(frame_range, step)
+
+        def work():
+            node = hou.node(rop_path)
+            if node is None:
+                raise ValueError(f"ROP not found: {rop_path!r}")
+
+            job_id = f"rop-{uuid.uuid4().hex}"
+            started = _now()
+            base = _render_metadata(rop_path, frame_range, step, verbose,
+                                    "nonblocking")
+            _job_update(job_id, status="starting", started_at=started, **base)
+
+            attempts = (
+                {"block": False},
+                {"blocking": False},
+            )
+            errors = []
+            for extra in attempts:
+                try:
+                    render_kwargs = _call_render(node, frame_range, step,
+                                                 verbose, extra)
+                    data = _job_update(job_id, status="running",
+                                       render_kwargs=dict(render_kwargs),
+                                       nonblocking_arg=dict(extra))
+                    data["note"] = (
+                        "Render was started with Houdini non-blocking API. "
+                        "Use rop_render_job_status or rop_render_status to poll."
+                    )
+                    return ok(data)
+                except TypeError as exc:
+                    errors.append(str(exc))
+
+            render_kwargs = _call_render(node, frame_range, step, verbose)
+            data = _job_update(job_id, status="completed", mode="blocking",
+                               render_kwargs=dict(render_kwargs),
+                               finished_at=_now(),
+                               fallback_errors=errors)
+            data["note"] = (
+                "ROP render API did not accept non-blocking arguments; "
+                "render completed before returning."
+            )
+            return ok(data)
+        return dispatch(work, label="rop_render_start")
+    except Exception as e:
+        return err(e)
+
+
+def _rop_render_job_status(job_id: str):
+    try:
+        def work():
+            job = _job_snapshot(job_id)
+            if job is None:
+                raise ValueError(f"Render job not found: {job_id!r}")
+            rop_path = job.get("path")
+            if rop_path:
+                node = hou.node(rop_path)
+                if node is not None:
+                    job["is_cooking"] = getattr(node, "isCooking", lambda: False)()
+                    if job.get("status") == "running" and not job["is_cooking"]:
+                        job["status"] = "unknown_or_completed"
+            return ok(job)
+        return dispatch(work, label="rop_render_job_status")
     except Exception as e:
         return err(e)
 
@@ -134,9 +301,26 @@ def register(app):
 
     @app.tool("rop_render")
     async def rop_render(rop_path: str, frame_range: "list | None" = None,
-                          step: float = 1.0) -> list:
+                          step: float = 1.0, verbose: bool = False) -> list:
         """Execute a ROP render. frame_range: [start, end]. WARNING: This is blocking."""
-        return [{"type": "text", "text": json.dumps(_rop_render(rop_path, frame_range, step))}]
+        return [{"type": "text", "text": json.dumps(_rop_render(rop_path, frame_range, step, verbose))}]
+
+    @app.tool("rop_render_start")
+    async def rop_render_start(rop_path: str, frame_range: "list | None" = None,
+                               step: float = 1.0, verbose: bool = False) -> list:
+        """Start a ROP render with Houdini non-blocking API when available; returns job metadata."""
+        return [{"type": "text", "text": json.dumps(_rop_render_start(rop_path, frame_range, step, verbose))}]
+
+    @app.tool("rop_render_async")
+    async def rop_render_async(rop_path: str, frame_range: "list | None" = None,
+                               step: float = 1.0, verbose: bool = False) -> list:
+        """Alias for rop_render_start."""
+        return [{"type": "text", "text": json.dumps(_rop_render_start(rop_path, frame_range, step, verbose))}]
+
+    @app.tool("rop_render_job_status")
+    async def rop_render_job_status(job_id: str) -> list:
+        """Return local metadata for a render job started by rop_render_start."""
+        return [{"type": "text", "text": json.dumps(_rop_render_job_status(job_id))}]
 
     @app.tool("rop_render_status")
     async def rop_render_status(rop_path: str) -> list:

@@ -119,7 +119,17 @@ def test_geo_save_calls_geo_save(mock_hou):
     from houdini_side.tools.geometry import _geo_save
     result = _geo_save("/obj/geo1/box1", "/tmp/out.bgeo")
     assert result["success"] is True
-    assert saved == ["/tmp/out.bgeo"]
+    assert saved[0].endswith("/tmp/out.bgeo")
+
+
+def test_geo_save_rejects_unknown_extension(mock_hou):
+    geo = _make_geo()
+    sop = _make_sop(geo)
+    mock_hou.node = lambda p: sop
+    from houdini_side.tools.geometry import _geo_save
+    result = _geo_save("/obj/geo1/box1", "/tmp/out.txt")
+    assert result["success"] is False
+    assert "extension" in result["error"].lower()
 
 
 def test_geo_groups_returns_empty(mock_hou):

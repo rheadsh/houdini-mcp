@@ -6,6 +6,8 @@ try:
     from pxr import Usd, Sdf  # type: ignore[import-untyped]
     _PXR_AVAILABLE = True
 except ImportError:
+    Usd = None  # type: ignore[assignment]
+    Sdf = None  # type: ignore[assignment]
     _PXR_AVAILABLE = False
 
 
@@ -15,6 +17,37 @@ def _require_pxr():
             "pxr (USD) is not available in this Python environment. "
             "Solaris tools require Houdini's bundled Python with USD support."
         )
+
+
+def _usd_path(value):
+    try:
+        return str(value.path)
+    except Exception:
+        try:
+            return str(value.GetPath())
+        except Exception:
+            return str(value)
+
+
+def _as_list(value):
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    try:
+        return list(value)  # type: ignore[arg-type]
+    except TypeError:
+        return [value]
+
+
+def _get_lop_stage(lop_path: str):
+    node = hou.node(lop_path)
+    if node is None:
+        raise ValueError(f"LOP node not found: {lop_path!r}")
+    stage = node.stage()
+    if stage is None:
+        raise ValueError(f"No USD stage on {lop_path!r}")
+    return node, stage
 
 
 def _lop_stage_info(lop_path: str):
@@ -35,6 +68,118 @@ def _lop_stage_info(lop_path: str):
                 "up_axis": stage.GetMetadata("upAxis") or "Y",
             })
         return dispatch(work, label="lop_stage_info")
+    except Exception as e:
+        return err(e)
+
+
+def _lop_layer_stack(lop_path: str):
+    try:
+        _require_pxr()
+        def work():
+            _, stage = _get_lop_stage(lop_path)
+            layers = []
+            get_layers = getattr(stage, "GetLayerStack", None)
+            if not callable(get_layers):
+                get_layers = getattr(stage, "GetUsedLayers", None)
+            if callable(get_layers):
+                raw_layers = get_layers()
+                for layer in _as_list(raw_layers):
+                    layers.append({
+                        "identifier": getattr(layer, "identifier", ""),
+                        "real_path": getattr(layer, "realPath", ""),
+                        "anonymous": bool(getattr(layer, "anonymous", False)),
+                        "dirty": bool(getattr(layer, "dirty", False)),
+                    })
+            else:
+                root_layer = getattr(stage, "GetRootLayer", lambda: None)()
+                if root_layer is not None:
+                    layers.append({
+                        "identifier": getattr(root_layer, "identifier", ""),
+                        "real_path": getattr(root_layer, "realPath", ""),
+                        "anonymous": bool(getattr(root_layer, "anonymous", False)),
+                        "dirty": bool(getattr(root_layer, "dirty", False)),
+                    })
+            return ok({"path": lop_path, "layers": layers, "count": len(layers)})
+        return dispatch(work, label="lop_layer_stack")
+    except Exception as e:
+        return err(e)
+
+
+def _lop_prim_relationships(lop_path: str, prim_path: str):
+    try:
+        _require_pxr()
+        def work():
+            _, stage = _get_lop_stage(lop_path)
+            prim = stage.GetPrimAtPath(prim_path)
+            if not prim.IsValid():
+                raise ValueError(f"USD prim not found: {prim_path!r}")
+            relationships = []
+            for rel in prim.GetRelationships():
+                targets = []
+                get_targets = getattr(rel, "GetTargets", None)
+                if callable(get_targets):
+                    raw_targets = get_targets()
+                    targets = [_usd_path(t) for t in _as_list(raw_targets)]
+                relationships.append({
+                    "name": rel.GetName(),
+                    "targets": targets,
+                })
+            return ok({
+                "prim_path": prim_path,
+                "relationships": relationships,
+                "count": len(relationships),
+            })
+        return dispatch(work, label="lop_prim_relationships")
+    except Exception as e:
+        return err(e)
+
+
+def _lop_material_bindings(lop_path: str, prim_path: str = "/"):
+    try:
+        _require_pxr()
+        def work():
+            _, stage = _get_lop_stage(lop_path)
+            root = stage.GetPrimAtPath(prim_path)
+            if not root.IsValid():
+                raise ValueError(f"USD prim not found: {prim_path!r}")
+            material_binding_api = getattr(Usd, "Shade", None) if Usd is not None else None
+            if material_binding_api is None:
+                try:
+                    from pxr import UsdShade  # type: ignore[import-untyped]
+                    material_binding_api = UsdShade
+                except Exception:
+                    material_binding_api = None
+            if material_binding_api is None or not hasattr(material_binding_api, "MaterialBindingAPI"):
+                return ok({
+                    "prim_path": prim_path,
+                    "bindings": [],
+                    "count": 0,
+                    "note": "UsdShade.MaterialBindingAPI not available",
+                })
+
+            bindings = []
+            if Usd is None:
+                raise RuntimeError("pxr.Usd is not available")
+            for prim in Usd.PrimRange(root):
+                try:
+                    api = material_binding_api.MaterialBindingAPI(prim)
+                    material, relationship = api.ComputeBoundMaterial()
+                except Exception:
+                    continue
+                if not material:
+                    continue
+                material_path = ""
+                try:
+                    material_path = _usd_path(material.GetPrim())
+                except Exception:
+                    material_path = _usd_path(material)
+                bindings.append({
+                    "prim_path": _usd_path(prim),
+                    "material_path": material_path,
+                    "relationship": getattr(relationship, "GetName", lambda: "")(),
+                })
+            return ok({"prim_path": prim_path, "bindings": bindings, "count": len(bindings)})
+        return dispatch(work, label="lop_material_bindings")
     except Exception as e:
         return err(e)
 
@@ -155,6 +300,21 @@ def register(app):
     async def lop_prim_list(lop_path: str, prim_path: str = "/") -> list:
         """List children of a USD prim in the stage."""
         return [{"type": "text", "text": json.dumps(_lop_prim_list(lop_path, prim_path))}]
+
+    @app.tool("lop_layer_stack")
+    async def lop_layer_stack(lop_path: str) -> list:
+        """List USD layers used by a LOP stage. Requires USD (pxr)."""
+        return [{"type": "text", "text": json.dumps(_lop_layer_stack(lop_path))}]
+
+    @app.tool("lop_prim_relationships")
+    async def lop_prim_relationships(lop_path: str, prim_path: str) -> list:
+        """List USD relationships and target paths for a prim."""
+        return [{"type": "text", "text": json.dumps(_lop_prim_relationships(lop_path, prim_path))}]
+
+    @app.tool("lop_material_bindings")
+    async def lop_material_bindings(lop_path: str, prim_path: str = "/") -> list:
+        """List computed material bindings below a USD prim."""
+        return [{"type": "text", "text": json.dumps(_lop_material_bindings(lop_path, prim_path))}]
 
     @app.tool("lop_prim_info")
     async def lop_prim_info(lop_path: str, prim_path: str) -> list:

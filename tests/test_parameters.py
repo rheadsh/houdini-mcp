@@ -65,6 +65,31 @@ def test_parm_set_calls_set(mock_hou):
     assert set_vals == [3.14]
 
 
+def test_parm_set_many_sets_all_items(mock_hou):
+    set_vals = []
+    node1 = _make_node_with_parm("tx")
+    node2 = _make_node_with_parm("ty")
+    node1.parm("tx").set = lambda v: set_vals.append(("/obj/geo1/box1", "tx", v))
+    node2.parm("ty").set = lambda v: set_vals.append(("/obj/geo1/box2", "ty", v))
+    mock_hou.node = lambda p: {
+        "/obj/geo1/box1": node1,
+        "/obj/geo1/box2": node2,
+    }.get(p)
+
+    from houdini_side.tools.parameters import _parm_set_many
+    result = _parm_set_many([
+        {"node_path": "/obj/geo1/box1", "parm_name": "tx", "value": 1.0},
+        {"node_path": "/obj/geo1/box2", "parm_name": "ty", "value": 2.0},
+    ])
+
+    assert result["success"] is True
+    assert result["data"]["count"] == 2
+    assert set_vals == [
+        ("/obj/geo1/box1", "tx", 1.0),
+        ("/obj/geo1/box2", "ty", 2.0),
+    ]
+
+
 def test_parm_revert(mock_hou):
     reverted = []
     node = _make_node_with_parm("tx")

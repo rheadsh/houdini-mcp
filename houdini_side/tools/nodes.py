@@ -3,6 +3,17 @@ import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
 
 
+def _set_node_parm(node, parm_name: str, value):
+    parm = node.parm(parm_name)
+    if parm is None:
+        pt = node.parmTuple(parm_name)
+        if pt is None:
+            raise ValueError(f"Parameter not found: {parm_name!r}")
+        pt.set(value if isinstance(value, (list, tuple)) else [value])
+    else:
+        parm.set(value)
+
+
 def _node_info(node):
     """Serialize a hou node to a plain dict."""
     try:
@@ -85,6 +96,35 @@ def _node_create(parent_path: str, node_type: str, name: "str | None" = None):
         return err(e)
 
 
+def _node_create_many(parent_path: str, specs: list):
+    try:
+        def work():
+            with hou.undos.group("mcp: create many nodes"):
+                parent = hou.node(parent_path)
+                if parent is None:
+                    raise ValueError(f"Parent network not found: {parent_path!r}")
+                created = []
+                for index, spec in enumerate(specs):
+                    node_type = spec.get("node_type")
+                    if not node_type:
+                        raise ValueError(f"Missing node_type in spec {index}")
+                    node = parent.createNode(node_type, spec.get("name"))
+                    position = spec.get("position")
+                    if position is not None:
+                        if not (isinstance(position, (list, tuple)) and len(position) == 2):
+                            raise ValueError(f"position must be [x, y] in spec {index}")
+                        node.setPosition(hou.Vector2(position[0], position[1]))
+                    parms = spec.get("parms")
+                    if parms:
+                        for parm_name, value in parms.items():
+                            _set_node_parm(node, parm_name, value)
+                    created.append(_node_info(node))
+                return ok({"count": len(created), "nodes": created})
+        return dispatch(work, label="node_create_many")
+    except Exception as e:
+        return err(e)
+
+
 def _node_delete(path: str):
     try:
         def work():
@@ -141,6 +181,37 @@ def _node_connect(from_path: str, from_output: int,
                 dst.setInput(to_input, src, from_output)
                 return ok({"connected": f"{from_path}[{from_output}]->{to_path}[{to_input}]"})
         return dispatch(work, label="node_connect")
+    except Exception as e:
+        return err(e)
+
+
+def _node_connect_many(connections: list):
+    try:
+        def work():
+            with hou.undos.group("mcp: connect many nodes"):
+                connected = []
+                for index, connection in enumerate(connections):
+                    from_path = connection.get("from_path")
+                    to_path = connection.get("to_path")
+                    if not from_path:
+                        raise ValueError(f"Missing from_path in connection {index}")
+                    if not to_path:
+                        raise ValueError(f"Missing to_path in connection {index}")
+                    from_output = connection.get("from_output", 0)
+                    to_input = connection.get("to_input", 0)
+                    src = hou.node(from_path)
+                    dst = hou.node(to_path)
+                    if src is None:
+                        raise ValueError(f"Source node not found: {from_path!r}")
+                    if dst is None:
+                        raise ValueError(f"Dest node not found: {to_path!r}")
+                    dst.setInput(to_input, src, from_output)
+                    connected.append(
+                        {"from": from_path, "from_output": from_output,
+                         "to": to_path, "to_input": to_input}
+                    )
+                return ok({"count": len(connected), "connections": connected})
+        return dispatch(work, label="node_connect_many")
     except Exception as e:
         return err(e)
 
@@ -258,6 +329,70 @@ def _node_type_list(context: str):
         return err(e)
 
 
+def _parm_template_info(template):
+    info = {}
+    for key, method_name in (
+        ("name", "name"),
+        ("label", "label"),
+        ("type", "type"),
+        ("num_components", "numComponents"),
+    ):
+        try:
+            value = getattr(template, method_name)()
+            info[key] = str(value) if key == "type" else value
+        except Exception:
+            pass
+    return info
+
+
+def _node_type_info(context: str, node_type: str):
+    try:
+        def work():
+            fn_name = _CONTEXT_CATEGORIES.get(context.lower())
+            if not fn_name:
+                raise ValueError(
+                    f"Unknown context: {context!r}. Valid: {list(_CONTEXT_CATEGORIES)}"
+                )
+            cat = getattr(hou, fn_name)()
+            node_types = cat.nodeTypes()
+            nt = node_types.get(node_type)
+            if nt is None:
+                raise ValueError(f"Node type not found: {node_type!r} in {context!r}")
+
+            data: dict = {"name": node_type, "category": context}
+            for key, method_name in (
+                ("description", "description"),
+                ("label", "description"),
+                ("min_inputs", "minNumInputs"),
+                ("max_inputs", "maxNumInputs"),
+            ):
+                try:
+                    data[key] = getattr(nt, method_name)()
+                except Exception:
+                    pass
+            try:
+                data["name"] = nt.name()
+            except Exception:
+                pass
+            try:
+                data["category"] = nt.category().name()
+            except Exception:
+                try:
+                    data["category"] = cat.name()
+                except Exception:
+                    pass
+            try:
+                group = nt.parmTemplateGroup()
+                templates = group.entries()
+                data["parm_templates"] = [_parm_template_info(t) for t in templates]
+            except Exception:
+                pass
+            return ok(data)
+        return dispatch(work, label="node_type_info")
+    except Exception as e:
+        return err(e)
+
+
 def _node_copy_paste(source_paths: list, network_path: str):
     try:
         def work():
@@ -319,7 +454,7 @@ def _sticky_note_create(network_path: str, text: str,
 
 
 def register(app):
-    """Register all 16 node management tools."""
+    """Register all 19 node management tools."""
     import json
 
     @app.tool("node_get")
@@ -336,6 +471,11 @@ def register(app):
     async def node_create(parent_path: str, node_type: str, name: "str | None" = None) -> list:
         """Create a node inside a network. Use node_type_list to get valid types."""
         return [{"type": "text", "text": json.dumps(_node_create(parent_path, node_type, name))}]
+
+    @app.tool("node_create_many")
+    async def node_create_many(parent_path: str, specs: list) -> list:
+        """Create many nodes in one undo group. specs: [{node_type, name?, position?, parms?}]."""
+        return [{"type": "text", "text": json.dumps(_node_create_many(parent_path, specs))}]
 
     @app.tool("node_delete")
     async def node_delete(path: str) -> list:
@@ -359,6 +499,11 @@ def register(app):
         return [{"type": "text", "text": json.dumps(
             _node_connect(from_path, from_output, to_path, to_input)
         )}]
+
+    @app.tool("node_connect_many")
+    async def node_connect_many(connections: list) -> list:
+        """Wire many connections in one undo group. items: [{from_path, from_output, to_path, to_input}]."""
+        return [{"type": "text", "text": json.dumps(_node_connect_many(connections))}]
 
     @app.tool("node_disconnect")
     async def node_disconnect(to_path: str, to_input: int) -> list:
@@ -389,6 +534,11 @@ def register(app):
     async def node_type_list(context: str) -> list:
         """List all node types in context: sop|obj|dop|rop|lop|top|cop2|vop|shop|chop."""
         return [{"type": "text", "text": json.dumps(_node_type_list(context))}]
+
+    @app.tool("node_type_info")
+    async def node_type_info(context: str, node_type: str) -> list:
+        """Get metadata for one node type in context: sop|obj|dop|rop|lop|top|cop2|vop|shop|chop."""
+        return [{"type": "text", "text": json.dumps(_node_type_info(context, node_type))}]
 
     @app.tool("node_copy_paste")
     async def node_copy_paste(source_paths: list, network_path: str) -> list:

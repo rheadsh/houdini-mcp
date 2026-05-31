@@ -1,7 +1,7 @@
 # houdini-mcp
 
 MCP server for Houdini — gives Claude direct access to an active Houdini session.
-108 tools across 14 categories: nodes, geometry, parameters, animation, rendering,
+123 tools across 14 categories: nodes, geometry, parameters, animation, rendering,
 HDAs, DOPs, Solaris/USD, PDG, VEX/VOPs, takes, and utilities.
 
 Requires Houdini 20.0+ with an active session (not headless).
@@ -11,14 +11,23 @@ Requires Houdini 20.0+ with an active session (not headless).
 ### macOS / Linux
 
 ```bash
-# 1. Install MCP SDK into Houdini's Python
+# Run from the repo root. Installs runtime deps into hython and writes
+# $HOUDINI_USER_PREF_DIR/packages/houdini_mcp.json with this repo path.
 bash install/setup.sh
-
-# 2. Install the Houdini package
-cp install/houdini_mcp.json "$HOUDINI_USER_PREF_DIR/packages/"
 ```
 
-Edit `houdini_mcp.json` and set `HOUDINI_MCP_ROOT` to the absolute path of this repo.
+If `hython` is not on `PATH`, set it explicitly:
+
+```bash
+HYTHON=/path/to/hython bash install/setup.sh
+```
+
+On Linux, source Houdini's environment first if needed:
+
+```bash
+source /opt/hfs21.0/houdini_setup
+bash install/setup.sh
+```
 
 ### Windows
 
@@ -30,14 +39,18 @@ REM — or — PowerShell
 powershell -ExecutionPolicy Bypass -File install\setup.ps1
 ```
 
-Then copy the Windows package descriptor:
+The Windows installer installs runtime dependencies and writes:
 
 ```powershell
-Copy-Item install\houdini_mcp_windows.json `
-    "$env:HOUDINI_USER_PREF_DIR\packages\houdini_mcp.json"
+$env:HOUDINI_USER_PREF_DIR\packages\houdini_mcp.json
 ```
 
-Open the copied file and replace `C:/Users/YOUR_USERNAME/houdini-mcp` with the actual path to this repo (use forward slashes — Houdini accepts them on Windows).
+If `hython.exe` is not on `PATH`, set it explicitly:
+
+```powershell
+$env:HYTHON = "C:\Program Files\Side Effects Software\Houdini 21.0.000\bin\hython.exe"
+powershell -ExecutionPolicy Bypass -File install\setup.ps1
+```
 
 > **Tip:** `HOUDINI_USER_PREF_DIR` is typically  
 > `C:\Users\<user>\Documents\houdini20.5` (adjust for your Houdini version).
@@ -47,6 +60,15 @@ Open the copied file and replace `C:/Users/YOUR_USERNAME/houdini-mcp` with the a
 In Houdini: **Shelf → Houdini MCP → Start MCP Server**
 
 The server starts on `http://localhost:9876/sse` (configurable via `HOUDINI_MCP_PORT`).
+
+Useful package/env settings:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `HOUDINI_MCP_PORT` | `9876` | Local SSE server port |
+| `HOUDINI_MCP_DISPATCH_TIMEOUT` | `30` | Default main-thread dispatch timeout in seconds |
+| `HOUDINI_MCP_TIMEOUT_<TOOL>` | — | Per-tool timeout override, e.g. `HOUDINI_MCP_TIMEOUT_ROP_RENDER_START=300` |
+| `HOUDINI_MCP_PROJECT_ROOT` | — | Optional hip-file sandbox root |
 
 ## Configure Claude Desktop
 
@@ -80,28 +102,29 @@ python -m pytest tests/ --ignore=tests/test_integration.py -v
 hython -m pytest tests/test_integration.py -v
 ```
 
-## Tool categories (108 total)
+## Tool categories (123 total)
 
 | Category | Count | Prefix(es) |
 |----------|-------|------------|
 | Session & hip files | 6 | `hip_`, `session_` |
-| Nodes | 16 | `node_`, `network_box_`, `sticky_note_` |
-| Parameters | 10 | `parm_` |
+| Nodes | 19 | `node_`, `network_box_`, `sticky_note_` |
+| Parameters | 11 | `parm_` |
 | Geometry (SOPs) | 8 | `geo_` |
 | Object Transforms | 6 | `obj_` |
-| Rendering (ROPs) | 6 | `rop_` |
+| Rendering (ROPs) | 9 | `rop_` |
 | Animation & Time | 8 | `time_`, `fps_`, `frame_range_`, `channel_`, `keyframe_` |
-| Digital Assets | 8 | `hda_` |
+| Digital Assets | 9 | `hda_` |
 | Dynamics (DOPs) | 5 | `dop_` |
-| Solaris/USD (LOPs) | 6 | `lop_` |
-| PDG/TOPs | 5 | `pdg_` |
+| Solaris/USD (LOPs) | 9 | `lop_` |
+| PDG/TOPs | 8 | `pdg_` |
 | Takes | 4 | `take_` |
 | VEX/VOPs | 7 | `vex_`, `vop_` |
-| Utilities | 13 | `run_hscript`, `eval_expression`, `expand_string`, `undo`, `redo`, etc. |
+| Utilities | 14 | `run_hscript`, `eval_expression`, `expand_string`, `undo`, `redo`, etc. |
 
 ## Tool reference
 
 All tools return `{"success": true, "data": {...}}` on success or `{"success": false, "error": "...", "error_type": "..."}` on failure.
+Successful dispatched tools also include `meta.tool` and `meta.duration_ms` for profiling.
 
 ### Session & hip files
 
@@ -121,16 +144,19 @@ All tools return `{"success": true, "data": {...}}` on success or `{"success": f
 | `node_get` | `path: str` | Get node info: type, flags, connections, color, position |
 | `node_list` | `network_path: str`, `type_filter?: str` | List all children of a network. Optional type filter (e.g. `'box'`) |
 | `node_create` | `parent_path: str`, `node_type: str`, `name?: str` | Create a node. Use `node_type_list` to find valid type names |
+| `node_create_many` | `parent_path: str`, `specs: list` | Batch-create nodes with optional name, position, and initial parms in one undo group |
 | `node_delete` | `path: str` | Delete a node permanently (undoable) |
 | `node_rename` | `path: str`, `new_name: str` | Rename a node |
 | `node_move` | `path: str`, `x: float`, `y: float` | Move a node to `(x, y)` in the network editor |
 | `node_connect` | `from_path: str`, `from_output: int`, `to_path: str`, `to_input: int` | Wire `from_path[from_output]` to `to_path[to_input]` |
+| `node_connect_many` | `connections: list` | Batch-connect multiple node wires in one undo group |
 | `node_disconnect` | `to_path: str`, `to_input: int` | Disconnect an input on a node |
 | `node_bypass` | `path: str`, `on: bool` | Toggle bypass flag |
 | `node_set_flag` | `path: str`, `flag: str`, `on: bool` | Set a flag: `display` \| `render` \| `template` \| `highlight` |
 | `node_cook` | `path: str` | Force-cook a node. Required before `geo_info` if the node hasn't cooked yet |
 | `node_layout` | `network_path: str` | Auto-layout all nodes in a network |
 | `node_type_list` | `context: str` | List all node types in context: `sop\|obj\|dop\|rop\|lop\|top\|cop2\|vop\|shop\|chop` |
+| `node_type_info` | `context: str`, `node_type: str` | Get node type metadata and available parameter templates where supported |
 | `node_copy_paste` | `source_paths: list`, `network_path: str` | Copy nodes and paste into `network_path` |
 | `network_box_create` | `network_path: str`, `name: str`, `color?: [r,g,b]` | Create a labeled network box. Color is floats 0–1 |
 | `sticky_note_create` | `network_path: str`, `text: str`, `x: float`, `y: float` | Create a sticky note at position `(x, y)` |
@@ -141,6 +167,7 @@ All tools return `{"success": true, "data": {...}}` on success or `{"success": f
 |------|-----------|-------------|
 | `parm_get` | `node_path: str`, `parm_name: str` | Get the evaluated value of a parameter or parameter tuple |
 | `parm_set` | `node_path: str`, `parm_name: str`, `value` | Set a parameter. Use a list for vector params like `t` or `s` |
+| `parm_set_many` | `items: list` | Batch-set parameters across nodes in one undo group |
 | `parm_set_expression` | `node_path: str`, `parm_name: str`, `expr: str`, `language?: str` | Set a channel expression. `language`: `'python'` (default) or `'hscript'` |
 | `parm_get_all` | `node_path: str` | Get all parameters with their current evaluated values |
 | `parm_revert` | `node_path: str`, `parm_name: str` | Revert a parameter to its default value |
@@ -180,6 +207,9 @@ All tools return `{"success": true, "data": {...}}` on success or `{"success": f
 |------|-----------|-------------|
 | `rop_list` | `network_path?: str` | List all ROP nodes in a network (default: `/out`) |
 | `rop_render` | `rop_path: str`, `frame_range?: [start,end]`, `step?: float` | Execute a render. **Blocking** — will timeout if render exceeds 30 s. For long renders use `pdg_cook` instead |
+| `rop_render_start` | `rop_path: str`, `frame_range?: [start,end]`, `step?: float`, `verbose?: bool` | Start a render with local job metadata; uses non-blocking render APIs when available |
+| `rop_render_async` | `rop_path: str`, `frame_range?: [start,end]`, `step?: float`, `verbose?: bool` | Alias for `rop_render_start` |
+| `rop_render_job_status` | `job_id: str` | Get local metadata for a render started through `rop_render_start` |
 | `rop_render_status` | `rop_path: str` | Check whether a ROP is currently cooking |
 | `rop_get_output` | `rop_path: str` | Get the render output path (tries Mantra, Karma, Redshift, Arnold, etc.) |
 | `rop_set_output` | `rop_path: str`, `output_path: str` | Set the render output path |
@@ -204,6 +234,7 @@ All tools return `{"success": true, "data": {...}}` on success or `{"success": f
 |------|-----------|-------------|
 | `hda_list` | — | List all installed HDAs with node type, label, and version |
 | `hda_info` | `hda_node_type: str` | Get HDA definition info: sections, label, version |
+| `hda_versions` | `hda_node_type?: str` | List discovered HDA definitions and versions, optionally filtered by node type |
 | `hda_install` | `hda_path: str` | Install an HDA file into the current session |
 | `hda_uninstall` | `hda_node_type: str` | Uninstall an HDA definition |
 | `hda_save` | `node_path: str`, `hda_file_path?: str` | Save the HDA definition of an HDA instance node to disk |
@@ -230,6 +261,9 @@ Requires Houdini with USD support (`pxr` module). All tools return a clear error
 | `lop_stage_info` | `lop_path: str` | Get USD stage info: root prim paths and up-axis |
 | `lop_prim_list` | `lop_path: str`, `prim_path?: str` | List children of a USD prim (default: `/`) |
 | `lop_prim_info` | `lop_path: str`, `prim_path: str` | Get USD prim type, attributes, and variant sets |
+| `lop_layer_stack` | `lop_path: str` | List USD layer stack / used layers for a LOP stage |
+| `lop_prim_relationships` | `lop_path: str`, `prim_path: str` | List USD relationships and targets for a prim |
+| `lop_material_bindings` | `lop_path: str`, `prim_path?: str` | Inspect material bindings under a USD prim where UsdShade is available |
 | `lop_save_usd` | `lop_path: str`, `file_path: str` | Export the USD stage to `.usd` / `.usda` / `.usdc` |
 | `lop_variant_set` | `lop_path: str`, `prim_path: str`, `varset: str`, `variant: str` | Set a variant selection on a USD prim |
 | `lop_load_masks` | `lop_path: str` | Get stage load mask configuration |
@@ -243,6 +277,9 @@ Requires Houdini with USD support (`pxr` module). All tools return a clear error
 | `pdg_cancel` | `top_net_path: str` | Cancel an active PDG cook |
 | `pdg_status` | `top_net_path: str` | Get the current cook state of a TOP network |
 | `pdg_output_list` | `top_net_path: str`, `node_name?: str` | List output file paths from PDG work items |
+| `pdg_workitems` | `top_net_path: str`, `node_name?: str`, `include_logs?: bool` | List PDG work items with defensive metadata |
+| `pdg_failed_items` | `top_net_path: str`, `node_name?: str`, `include_logs?: bool` | List failed PDG work items and optional logs |
+| `pdg_logs` | `top_net_path: str`, `node_name?: str`, `failed_only?: bool` | Collect PDG logs from work items |
 
 ### Takes
 
@@ -282,6 +319,7 @@ Requires Houdini with USD support (`pxr` module). All tools return a clear error
 | `update_mode_set` | `mode: str` | Set scene update mode: `'auto'` \| `'manual'` \| `'on_request'` |
 | `viewport_screenshot` | `file_path?: str` | Capture the active viewport to a PNG file (default: `/tmp/mcp_screenshot.png`). Requires Houdini UI |
 | `node_bundle_list` | — | List all node bundles with their names and node counts |
+| `houdini_env_diagnostics` | — | Return Houdini, Python, path, and MCP environment diagnostics for support |
 
 ## Security notes
 

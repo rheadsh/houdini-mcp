@@ -9,6 +9,8 @@ In headless/test contexts (hou.isUIAvailable() is False),
 the callable is executed inline on the calling thread.
 """
 import threading
+import time
+import os
 from typing import Optional, Any
 
 try:
@@ -19,6 +21,27 @@ except ImportError:
     _HOU_AVAILABLE = False
 
 
+def _dispatch_timeout(label: str = "") -> float:
+    specific_name = f"HOUDINI_MCP_TIMEOUT_{label.upper()}" if label else ""
+    raw = os.environ.get(specific_name) if specific_name else None
+    raw = raw or os.environ.get("HOUDINI_MCP_DISPATCH_TIMEOUT", "30")
+    try:
+        timeout = float(raw)
+    except (TypeError, ValueError):
+        timeout = 30.0
+    return max(timeout, 0.1)
+
+
+def _annotate_response(response, label: str, elapsed_ms: float):
+    if isinstance(response, dict) and response.get("success") is True:
+        response.setdefault("meta", {})
+        response["meta"].update({
+            "tool": label or None,
+            "duration_ms": round(elapsed_ms, 3),
+        })
+    return response
+
+
 def dispatch(fn, label: str = ""):
     """
     Execute fn() on Houdini's main thread and return its result.
@@ -26,8 +49,12 @@ def dispatch(fn, label: str = ""):
 
     label: optional description used in TimeoutError messages for diagnostics.
     """
+    started = time.perf_counter()
     if not _HOU_AVAILABLE or hou is None or not hou.isUIAvailable():
-        return fn()
+        response = fn()
+        return _annotate_response(
+            response, label, (time.perf_counter() - started) * 1000.0
+        )
 
     result_holder: list[Any] = [None]
     exc_holder: list[Optional[Exception]] = [None]
@@ -45,17 +72,20 @@ def dispatch(fn, label: str = ""):
             done.set()
 
     hou.postEventCallback(_callback)
-    timed_out = not done.wait(timeout=30.0)
+    timeout = _dispatch_timeout(label)
+    timed_out = not done.wait(timeout=timeout)
 
     if timed_out:
         cancelled.set()
         tool_name = label or getattr(fn, "__name__", repr(fn))
         raise TimeoutError(
-            f"Houdini main thread dispatch timed out after 30s (tool: {tool_name})"
+            f"Houdini main thread dispatch timed out after {timeout:g}s (tool: {tool_name})"
         )
     if exc_holder[0] is not None:
         raise exc_holder[0]
-    return result_holder[0]
+    return _annotate_response(
+        result_holder[0], label, (time.perf_counter() - started) * 1000.0
+    )
 
 
 def ok(data, warnings=None):

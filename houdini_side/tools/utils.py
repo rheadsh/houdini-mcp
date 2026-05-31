@@ -1,4 +1,6 @@
 """Utility and miscellaneous tools."""
+import sys
+import platform
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
 
@@ -167,6 +169,39 @@ def _node_bundle_list():
         return err(e)
 
 
+def _houdini_env_diagnostics():
+    try:
+        def work():
+            env_names = [
+                "HOUDINI_MCP_ROOT",
+                "HOUDINI_MCP_PORT",
+                "HOUDINI_MCP_PROJECT_ROOT",
+                "HOUDINI_MCP_DISPATCH_TIMEOUT",
+                "HIP",
+                "JOB",
+                "HOUDINI_PATH",
+            ]
+            env = {name: hou.getenv(name) for name in env_names}
+            return ok({
+                "houdini": {
+                    "version": hou.applicationVersionString(),
+                    "name": hou.applicationName(),
+                    "ui_available": hou.isUIAvailable(),
+                    "user": hou.userName(),
+                },
+                "python": {
+                    "version": sys.version.split()[0],
+                    "executable": sys.executable,
+                },
+                "platform": platform.platform(),
+                "houdini_path": list(hou.houdiniPath()),
+                "env": env,
+            })
+        return dispatch(work, label="houdini_env_diagnostics")
+    except Exception as e:
+        return err(e)
+
+
 def register(app):
     import json
 
@@ -234,3 +269,8 @@ def register(app):
     async def node_bundle_list() -> list:
         """List all node bundles with their names and node counts."""
         return [{"type": "text", "text": json.dumps(_node_bundle_list())}]
+
+    @app.tool("houdini_env_diagnostics")
+    async def houdini_env_diagnostics() -> list:
+        """Return Houdini/Python/environment diagnostics for studio support."""
+        return [{"type": "text", "text": json.dumps(_houdini_env_diagnostics())}]

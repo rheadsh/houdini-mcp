@@ -3,6 +3,17 @@ import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
 
 
+def _set_node_parm(node, parm_name: str, value):
+    parm = node.parm(parm_name)
+    if parm is None:
+        pt = node.parmTuple(parm_name)
+        if pt is None:
+            raise ValueError(f"Parameter not found: {parm_name!r}")
+        pt.set(value if isinstance(value, (list, tuple)) else [value])
+    else:
+        parm.set(value)
+
+
 def _parm_get(node_path: str, parm_name: str):
     try:
         def work():
@@ -28,16 +39,33 @@ def _parm_set(node_path: str, parm_name: str, value):
                 node = hou.node(node_path)
                 if node is None:
                     raise ValueError(f"Node not found: {node_path!r}")
-                parm = node.parm(parm_name)
-                if parm is None:
-                    pt = node.parmTuple(parm_name)
-                    if pt is None:
-                        raise ValueError(f"Parameter not found: {parm_name!r}")
-                    pt.set(value if isinstance(value, (list, tuple)) else [value])
-                else:
-                    parm.set(value)
+                _set_node_parm(node, parm_name, value)
             return ok({"node": node_path, "parm": parm_name, "value": value})
         return dispatch(work)
+    except Exception as e:
+        return err(e)
+
+
+def _parm_set_many(items: list):
+    try:
+        def work():
+            with hou.undos.group("mcp: set many parms"):
+                changed = []
+                for index, item in enumerate(items):
+                    node_path = item.get("node_path")
+                    parm_name = item.get("parm_name")
+                    if not node_path:
+                        raise ValueError(f"Missing node_path in item {index}")
+                    if not parm_name:
+                        raise ValueError(f"Missing parm_name in item {index}")
+                    node = hou.node(node_path)
+                    if node is None:
+                        raise ValueError(f"Node not found: {node_path!r}")
+                    value = item.get("value")
+                    _set_node_parm(node, parm_name, value)
+                    changed.append({"node": node_path, "parm": parm_name, "value": value})
+                return ok({"count": len(changed), "items": changed})
+        return dispatch(work, label="parm_set_many")
     except Exception as e:
         return err(e)
 
@@ -202,7 +230,7 @@ def _parm_link(src_node: str, src_parm: str,
 
 
 def register(app):
-    """Register all 10 parameter tools."""
+    """Register all 11 parameter tools."""
     import json
 
     @app.tool("parm_get")
@@ -214,6 +242,11 @@ def register(app):
     async def parm_set(node_path: str, parm_name: str, value) -> list:
         """Set a parameter value. Use a list for vector/tuple params like 't' or 's'."""
         return [{"type": "text", "text": json.dumps(_parm_set(node_path, parm_name, value))}]
+
+    @app.tool("parm_set_many")
+    async def parm_set_many(items: list) -> list:
+        """Set many parameter values in one undo group. items: [{node_path, parm_name, value}]."""
+        return [{"type": "text", "text": json.dumps(_parm_set_many(items))}]
 
     @app.tool("parm_set_expression")
     async def parm_set_expression(node_path: str, parm_name: str,
