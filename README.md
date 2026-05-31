@@ -8,15 +8,39 @@ Requires Houdini 20.0+ with an active session (not headless).
 
 ## Install
 
+### macOS / Linux
+
 ```bash
 # 1. Install MCP SDK into Houdini's Python
 bash install/setup.sh
 
-# 2. Install the Houdini package (edits $HOUDINI_USER_PREF_DIR/packages/)
+# 2. Install the Houdini package
 cp install/houdini_mcp.json "$HOUDINI_USER_PREF_DIR/packages/"
 ```
 
 Edit `houdini_mcp.json` and set `HOUDINI_MCP_ROOT` to the absolute path of this repo.
+
+### Windows
+
+```bat
+REM Command Prompt
+install\setup.bat
+
+REM — or — PowerShell
+powershell -ExecutionPolicy Bypass -File install\setup.ps1
+```
+
+Then copy the Windows package descriptor:
+
+```powershell
+Copy-Item install\houdini_mcp_windows.json `
+    "$env:HOUDINI_USER_PREF_DIR\packages\houdini_mcp.json"
+```
+
+Open the copied file and replace `C:/Users/YOUR_USERNAME/houdini-mcp` with the actual path to this repo (use forward slashes — Houdini accepts them on Windows).
+
+> **Tip:** `HOUDINI_USER_PREF_DIR` is typically  
+> `C:\Users\<user>\Documents\houdini20.5` (adjust for your Houdini version).
 
 ## Start the server
 
