@@ -24,10 +24,10 @@ _start_lock = threading.Lock()  # prevents double-start race condition
 
 
 def _build_app():
-    from mcp.server import Server
+    from mcp.server.fastmcp import FastMCP
     from houdini_side.tools import ALL_REGISTERS
 
-    app = Server("houdini-mcp")
+    app = FastMCP("houdini-mcp")
     for register_fn in ALL_REGISTERS:
         register_fn(app)
     return app
@@ -86,30 +86,11 @@ def start_server(port: Optional[int] = None):
         def _run():
             global _uvicorn_server
             import asyncio
-            from mcp.server.sse import SseServerTransport
-            from starlette.applications import Starlette
-            from starlette.routing import Route, Mount
             import uvicorn
 
-            sse = SseServerTransport("/messages")
-            app = _mcp_app
-            assert app is not None, "MCP app was not initialized before _run()"
-
-            async def handle_sse(request):
-                async with sse.connect_sse(
-                    request.scope, request.receive, request._send
-                ) as streams:
-                    await app.run(
-                        streams[0], streams[1],
-                        app.create_initialization_options()
-                    )
-
+            assert _mcp_app is not None, "MCP app was not initialized before _run()"
             security_mw = _make_security_middleware(port)  # type: ignore[arg-type]
-
-            starlette_app = Starlette(routes=[
-                Route("/sse", endpoint=handle_sse),
-                Mount("/messages", app=sse.handle_post_message),
-            ])
+            starlette_app = _mcp_app.sse_app()
             starlette_app.add_middleware(security_mw)
 
             config = uvicorn.Config(
@@ -117,7 +98,17 @@ def start_server(port: Optional[int] = None):
                 log_level="warning",
             )
             _uvicorn_server = uvicorn.Server(config)
-            asyncio.run(_uvicorn_server.serve())
+
+            # Houdini replaces the asyncio event loop *policy* with haio, so
+            # asyncio.new_event_loop() still returns a haio loop that only
+            # works on the main thread. Bypass the policy entirely by
+            # instantiating the standard SelectorEventLoop directly.
+            loop = asyncio.SelectorEventLoop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(_uvicorn_server.serve())
+            finally:
+                loop.close()
 
         _server_thread = threading.Thread(
             target=_run, name="houdini-mcp-server", daemon=True

@@ -101,11 +101,11 @@ $packageFile = Join-Path $packagesDir "houdini_mcp.json"
 $package = [ordered]@{
     name = "houdini-mcp"
     path = "$repoRootJson/houdini_side"
-    pythonpath = $repoRootJson
     env = @(
         @{ HOUDINI_MCP_PORT = @{ value = "9876" } }
         @{ HOUDINI_MCP_DISPATCH_TIMEOUT = @{ value = "30" } }
         @{ HOUDINI_MCP_ROOT = @{ value = $repoRootJson } }
+        @{ PYTHONPATH = @{ value = $repoRootJson; method = "prepend" } }
     )
     houdini456 = @("$repoRootJson/houdini_side/startup.py")
 }

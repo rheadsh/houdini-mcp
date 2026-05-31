@@ -1,11 +1,11 @@
 {
     "name": "houdini-mcp",
     "path": "$HOUDINI_MCP_ROOT/houdini_side",
-    "pythonpath": "$HOUDINI_MCP_ROOT",
     "env": [
         { "HOUDINI_MCP_PORT": { "value": "9876" } },
         { "HOUDINI_MCP_DISPATCH_TIMEOUT": { "value": "30" } },
-        { "HOUDINI_MCP_ROOT": { "value": "C:/Users/YOUR_USERNAME/houdini-mcp" } }
+        { "HOUDINI_MCP_ROOT": { "value": "C:/Users/YOUR_USERNAME/houdini-mcp" } },
+        { "PYTHONPATH": { "value": "$HOUDINI_MCP_ROOT", "method": "prepend" } }
     ],
     "houdini456": [ "$HOUDINI_MCP_ROOT/houdini_side/startup.py" ]
 }

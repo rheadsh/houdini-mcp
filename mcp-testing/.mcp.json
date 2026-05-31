@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "houdini": {
+      "url": "http://localhost:9876/sse"
+    }
+  }
+}

@@ -50,7 +50,8 @@ def dispatch(fn, label: str = ""):
     label: optional description used in TimeoutError messages for diagnostics.
     """
     started = time.perf_counter()
-    if not _HOU_AVAILABLE or hou is None or not hou.isUIAvailable():
+    _has_post_callback = _HOU_AVAILABLE and hou is not None and hasattr(hou, 'postEventCallback')
+    if not _HOU_AVAILABLE or hou is None or not hou.isUIAvailable() or not _has_post_callback:
         response = fn()
         return _annotate_response(
             response, label, (time.perf_counter() - started) * 1000.0

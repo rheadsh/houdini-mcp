@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<shelfDocument>
+
+  <toolshelf name="houdini_mcp" label="Houdini MCP">
+    <memberTool name="houdini_mcp_start"/>
+    <memberTool name="houdini_mcp_stop"/>
+  </toolshelf>
+
+  <tool name="houdini_mcp_start" label="Start MCP Server" icon="MISC_python">
+    <script scriptType="python">
+<![CDATA[
+from houdini_side.mcp_server import start_server
+start_server()
+]]>
+    </script>
+  </tool>
+
+  <tool name="houdini_mcp_stop" label="Stop MCP Server" icon="MISC_python">
+    <script scriptType="python">
+<![CDATA[
+from houdini_side.mcp_server import stop_server
+stop_server()
+]]>
+    </script>
+  </tool>
+
+</shelfDocument>
