@@ -143,6 +143,28 @@ def make_hou_mock():
     hda.installFile = lambda path: None
     hou.hda = hda
 
+    # hou.hdaDefinition(category, node_type_name, version) -> HDADefinition or None
+    def _mock_hda_definition(cat, name, ver):
+        # Returns a mock definition for names ending in "_test", None otherwise
+        if name and str(name).endswith("_test"):
+            sections = {
+                "PythonCook": _types.SimpleNamespace(
+                    contents=lambda: "# test script",
+                    setContents=lambda c: None,
+                ),
+            }
+            return _types.SimpleNamespace(
+                nodeTypeName=lambda: name,
+                description=lambda: f"{name} label",
+                version=lambda: "1.0",
+                sections=lambda: sections,
+                libraryFilePath=lambda: f"/tmp/{name}.hda",
+                save=lambda path: None,
+                destroy=lambda: None,
+            )
+        return None
+    hou.hdaDefinition = _mock_hda_definition
+
     # takes submodule
     takes_mod = _types.ModuleType("hou.takes")
     _root_take = _types.SimpleNamespace(

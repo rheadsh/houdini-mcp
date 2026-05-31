@@ -4,9 +4,26 @@ from houdini_side.dispatcher import dispatch, ok, err
 
 
 def _vex_run(code: str, context: str = "sop"):
+    """
+    Execute VEX code via hou.runVex(). The exact API signature varies across
+    Houdini versions. For reliable VEX execution, prefer vop_snippet_set to set
+    code on an Attribute Wrangle, then use node_cook to execute it.
+    """
     try:
         def work():
-            result = hou.runVex(code, context)
+            run_vex = getattr(hou, "runVex", None)
+            if run_vex is None:
+                raise RuntimeError(
+                    "hou.runVex() is not available in this Houdini version. "
+                    "Use vop_snippet_set to set VEX code on an Attribute Wrangle node "
+                    "and node_cook to execute it instead."
+                )
+            # hou.runVex(code, inputs_dict, context) — inputs/outputs are optional
+            try:
+                result = run_vex(code, {}, context)
+            except TypeError:
+                # Older API: hou.runVex(code, context)
+                result = run_vex(code, context)
             return ok({"result": str(result), "context": context})
         return dispatch(work, label="vex_run")
     except Exception as e:
@@ -31,12 +48,14 @@ def _vop_network_list(search_path: str = "/"):
                 raise ValueError(f"Search root not found: {search_path!r}")
             vop_cat = hou.vopNodeTypeCategory()
             results = []
-            def _walk(node):
+            def _walk(node, depth=0):
+                if depth > 50:
+                    return
                 for child in node.children():
                     if child.type().category() == vop_cat:
                         results.append(child.path())
                     try:
-                        _walk(child)
+                        _walk(child, depth + 1)
                     except Exception:
                         pass
             _walk(root)

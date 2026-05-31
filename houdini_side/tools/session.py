@@ -43,7 +43,7 @@ def _session_info():
                 "user": hou.userName(),
                 "ui_available": hou.isUIAvailable(),
             })
-        return dispatch(work)
+        return dispatch(work, label="session_info")
     except Exception as e:
         return err(e)
 
@@ -55,7 +55,7 @@ def _hip_info():
                 "path": hou.hipFile.path(),
                 "has_unsaved_changes": hou.hipFile.hasUnsavedChanges(),
             })
-        return dispatch(work)
+        return dispatch(work, label="hip_info")
     except Exception as e:
         return err(e)
 
@@ -65,7 +65,7 @@ def _hip_new():
         def work():
             hou.hipFile.clear(suppress_save_prompt=True)
             return ok({"path": hou.hipFile.path()})
-        return dispatch(work)
+        return dispatch(work, label="hip_new")
     except Exception as e:
         return err(e)
 
@@ -77,7 +77,7 @@ def _hip_load(path: str):
         def work():
             hou.hipFile.load(safe, suppress_save_prompt=True)
             return ok({"path": hou.hipFile.path()})
-        return dispatch(work)
+        return dispatch(work, label="hip_load")
     except Exception as e:
         return err(e)
 
@@ -89,7 +89,7 @@ def _hip_save(path: "str | None" = None):
         def work():
             hou.hipFile.save(safe)
             return ok({"path": hou.hipFile.path()})
-        return dispatch(work)
+        return dispatch(work, label="hip_save")
     except Exception as e:
         return err(e)
 
@@ -101,7 +101,7 @@ def _hip_merge(path: str):
         def work():
             hou.hipFile.merge(safe)
             return ok({"merged": safe})
-        return dispatch(work)
+        return dispatch(work, label="hip_merge")
     except Exception as e:
         return err(e)
 

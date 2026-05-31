@@ -169,6 +169,12 @@ def _hda_section_set(hda_node_type: str, section_name: str, content: str):
                         continue
                 if defn is None:
                     raise ValueError(f"HDA not found: {hda_node_type!r}")
+                if section_name not in defn.sections():
+                    available = list(defn.sections().keys())
+                    raise ValueError(
+                        f"Section {section_name!r} not found. "
+                        f"Available: {available}"
+                    )
                 defn.sections()[section_name].setContents(content)
                 return ok({"section": section_name, "updated": True})
         return dispatch(work, label="hda_section_set")
@@ -214,13 +220,18 @@ def register(app):
 
     @app.tool("hda_section_get")
     async def hda_section_get(hda_node_type: str, section_name: str) -> list:
-        """Get the text content of an HDA section (e.g. 'PythonCook', 'OnLoaded')."""
+        """Get the text content of an HDA section (e.g. 'PythonCook', 'OnLoaded').
+        WARNING: Sections like PythonCook, OnLoaded, OnCreated, OnDeleted contain
+        Python code that executes when the HDA cooks or is installed."""
         return [{"type": "text", "text": json.dumps(_hda_section_get(hda_node_type, section_name))}]
 
     @app.tool("hda_section_set")
     async def hda_section_set(hda_node_type: str, section_name: str,
                                content: str) -> list:
-        """Set the text content of an HDA section."""
+        """Set the text content of an HDA section.
+        WARNING: Writing to PythonCook, OnLoaded, OnCreated, or OnDeleted injects
+        Python code that executes whenever the HDA cooks or is installed. Treat this
+        with the same caution as arbitrary code execution."""
         return [{"type": "text", "text": json.dumps(
             _hda_section_set(hda_node_type, section_name, content)
         )}]

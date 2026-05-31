@@ -131,6 +131,7 @@ def _lop_variant_set(lop_path: str, prim_path: str,
 
 def _lop_load_masks(lop_path: str):
     try:
+        _require_pxr()  # loadMasks() requires USD-capable Houdini
         def work():
             node = hou.node(lop_path)
             if node is None:
