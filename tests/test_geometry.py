@@ -130,3 +130,67 @@ def test_geo_groups_returns_empty(mock_hou):
     assert result["success"] is True
     assert result["data"]["point_groups"] == []
     assert result["data"]["prim_groups"] == []
+
+
+def test_geo_points_returns_positions(mock_hou):
+    """geo_points serializes point positions as [x, y, z] lists."""
+    import types
+
+    class _Vec3:
+        def __init__(self, x, y, z): self._v = [x, y, z]
+        def __getitem__(self, i): return self._v[i]
+        def __iter__(self): return iter(self._v)
+
+    geo = _make_geo(3, 0)
+    pts = [
+        types.SimpleNamespace(position=lambda i=i: _Vec3(float(i), 0.0, 0.0))
+        for i in range(3)
+    ]
+    geo.points = lambda: pts
+    sop = _make_sop(geo)
+    mock_hou.node = lambda p: sop
+    from houdini_side.tools.geometry import _geo_points
+    result = _geo_points("/obj/geo1/box1", max_count=10)
+    assert result["success"] is True
+    assert result["data"]["count"] == 3
+    assert result["data"]["positions"][0] == [0.0, 0.0, 0.0]
+    assert result["data"]["positions"][1] == [1.0, 0.0, 0.0]
+
+
+def test_geo_points_respects_max_count(mock_hou):
+    """geo_points truncates to max_count."""
+    import types
+
+    class _Vec3:
+        def __init__(self): pass
+        def __iter__(self): return iter([0.0, 0.0, 0.0])
+
+    geo = _make_geo(100, 0)
+    geo.points = lambda: [types.SimpleNamespace(position=lambda: _Vec3()) for _ in range(100)]
+    sop = _make_sop(geo)
+    mock_hou.node = lambda p: sop
+    from houdini_side.tools.geometry import _geo_points
+    result = _geo_points("/obj/geo1/box1", max_count=5)
+    assert result["data"]["count"] == 5
+
+
+def test_geo_attribute_values_vertex_attrib_returns_error(mock_hou):
+    """geo_attribute_values returns actionable error for vertex attributes."""
+    import types
+    geo = _make_geo()
+    vertex_attrib = types.SimpleNamespace(
+        type=lambda: "vertex",
+        dataType=lambda: "vertex",
+        name=lambda: "uv",
+        size=lambda: 3,
+    )
+    geo.findPointAttrib = lambda n: None
+    geo.findPrimAttrib = lambda n: None
+    geo.findVertexAttrib = lambda n: vertex_attrib if n == "uv" else None
+    geo.findGlobalAttrib = lambda n: None
+    sop = _make_sop(geo)
+    mock_hou.node = lambda p: sop
+    from houdini_side.tools.geometry import _geo_attribute_values
+    result = _geo_attribute_values("/obj/geo1/box1", "uv")
+    assert result["success"] is False
+    assert "vertex" in result["error"].lower()

@@ -15,7 +15,8 @@ def _obj_transform_get(obj_path: str, space: str = "world"):
                 m = node.localTransform()
             else:
                 raise ValueError(f"Invalid space {space!r}. Use 'world' or 'local'.")
-            return ok({"matrix": [list(row) for row in m.asTuple()], "space": space})
+            # asTupleOfTuples() returns nested 4x4; asTuple() returns flat 16-float
+            return ok({"matrix": [list(row) for row in m.asTupleOfTuples()], "space": space})
         return dispatch(work, label="obj_transform_get")
     except Exception as e:
         return err(e)

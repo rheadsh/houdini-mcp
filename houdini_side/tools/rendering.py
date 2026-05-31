@@ -2,9 +2,16 @@
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
 
-# Output parameter names by renderer type (tried in order)
-_OUTPUT_PARMS = ["vm_picture", "picture", "ri_display", "copoutput",
-                 "outputimage", "RS_outputFileNamePrefix"]
+# Output parameter names by renderer (tried in priority order)
+_OUTPUT_PARMS = [
+    "vm_picture",               # Mantra (ifd)
+    "picture",                  # Karma (lop)
+    "ri_display",               # RenderMan / PRMan
+    "copoutput",                # COP2 ROP
+    "outputimage",              # generic / Indie
+    "RS_outputFileNamePrefix",  # Redshift
+    "ar_picture",               # Arnold (HtoA)
+]
 
 
 def _rop_list(network_path: str = "/out"):

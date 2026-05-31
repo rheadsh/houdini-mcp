@@ -12,7 +12,6 @@ def _geo_info(sop_path: str):
             geo = node.geometry()
             if geo is None:
                 raise ValueError(f"No cooked geometry on node: {sop_path!r}")
-            warnings = []
             return ok({
                 "point_count": geo.pointCount(),
                 "prim_count": geo.primCount(),
@@ -21,7 +20,7 @@ def _geo_info(sop_path: str):
                 "prim_attribs": [a.name() for a in geo.primAttribs()],
                 "vertex_attribs": [a.name() for a in geo.vertexAttribs()],
                 "global_attribs": [a.name() for a in geo.globalAttribs()],
-            }, warnings)
+            })
         return dispatch(work, label="geo_info")
     except Exception as e:
         return err(e)
@@ -87,6 +86,14 @@ def _geo_attribute_values(sop_path: str, attrib_name: str, max_count: int = 100)
             elif "prim" in attrib_class.lower():
                 items = list(geo.prims())[:max_count]
                 vals = [p.attribValue(attrib_name) for p in items]
+            elif "vertex" in attrib_class.lower():
+                raise ValueError(
+                    f"Vertex attribute {attrib_name!r} iteration is not directly supported. "
+                    "Iterate via geo.prims() then prim.vertices() in a Python SOP or script."
+                )
+            elif "global" in attrib_class.lower():
+                # Detail (global) attrib — single value
+                vals = [geo.attribValue(attrib_name)]
             else:
                 vals = []
             vals = [list(v) if hasattr(v, '__iter__') and not isinstance(v, str)
@@ -133,7 +140,7 @@ def _geo_points(sop_path: str, max_count: int = 100):
             if geo is None:
                 raise ValueError(f"No cooked geometry on node: {sop_path!r}")
             pts = list(geo.points())[:max_count]
-            positions = [[p.position()[0], p.position()[1], p.position()[2]] for p in pts]
+            positions = [list(p.position()) for p in pts]
             return ok({"count": len(positions), "positions": positions})
         return dispatch(work, label="geo_points")
     except Exception as e:

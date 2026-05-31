@@ -8,8 +8,10 @@ def _make_obj_node(path="/obj/null1"):
     n.path = lambda: path
     n.parmTuple = lambda name: types.SimpleNamespace(set=lambda v: None)
     n.setInput = lambda idx, src, out=0: None
+    _identity = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
     _mat = types.SimpleNamespace(
-        asTuple=lambda: [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+        asTuple=lambda: tuple([0.0]*16),           # flat 16-float
+        asTupleOfTuples=lambda: tuple([tuple(row) for row in _identity]),  # nested 4x4
     )
     n.worldTransform = lambda: _mat
     n.localTransform = lambda: _mat
@@ -243,6 +245,82 @@ def test_frame_range_get(mock_hou):
     assert result["success"] is True
     assert result["data"]["start"] == 1.0
     assert result["data"]["end"] == 240.0
+
+
+# ---- Additional critical tests from QA Gate 3 ----
+
+def test_obj_transform_set_calls_setWorldTransform(mock_hou):
+    """obj_transform_set passes a Matrix4 to setWorldTransform."""
+    import types as _t
+    wt_calls = []
+    node = _make_obj_node()
+    node.setWorldTransform = lambda m: wt_calls.append(m)
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.transforms import _obj_transform_set
+    result = _obj_transform_set("/obj/null1",
+                                 [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
+    assert result["success"] is True
+    assert len(wt_calls) == 1  # setWorldTransform was called
+
+
+def test_obj_transform_get_returns_nested_matrix(mock_hou):
+    """obj_transform_get uses asTupleOfTuples, not asTuple (4x4 not flat 16)."""
+    node = _make_obj_node()
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.transforms import _obj_transform_get
+    result = _obj_transform_get("/obj/null1", "world")
+    assert result["success"] is True
+    matrix = result["data"]["matrix"]
+    assert len(matrix) == 4           # 4 rows
+    assert len(matrix[0]) == 4       # 4 cols per row (not flat)
+
+
+def test_rop_render_calls_render(mock_hou):
+    """rop_render calls node.render() with the correct frame_range."""
+    import types as _t
+    render_calls = []
+    node = _t.SimpleNamespace(
+        render=lambda **kwargs: render_calls.append(kwargs),
+    )
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.rendering import _rop_render
+    result = _rop_render("/out/mantra1", frame_range=[1, 10], step=1.0)
+    assert result["success"] is True
+    assert len(render_calls) == 1
+
+
+def test_rop_render_node_not_found(mock_hou):
+    mock_hou.node = lambda p: None
+    from houdini_side.tools.rendering import _rop_render
+    result = _rop_render("/out/missing")
+    assert result["success"] is False
+    assert "not found" in result["error"].lower()
+
+
+def test_rop_set_output_sets_parm(mock_hou):
+    """rop_set_output finds vm_picture parm and sets it."""
+    import types as _t
+    set_vals = []
+    parm = _t.SimpleNamespace(set=lambda v: set_vals.append(v))
+    node = _t.SimpleNamespace(
+        parm=lambda name: parm if name == "vm_picture" else None,
+    )
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.rendering import _rop_set_output
+    result = _rop_set_output("/out/mantra1", "/render/beauty.exr")
+    assert result["success"] is True
+    assert set_vals == ["/render/beauty.exr"]
+
+
+def test_rop_set_output_no_parm_returns_error(mock_hou):
+    """rop_set_output returns actionable error when no known output parm exists."""
+    import types as _t
+    node = _t.SimpleNamespace(parm=lambda name: None)
+    mock_hou.node = lambda p: node
+    from houdini_side.tools.rendering import _rop_set_output
+    result = _rop_set_output("/out/custom", "/render/out.exr")
+    assert result["success"] is False
+    assert "parm_set" in result["error"].lower() or "parm name" in result["error"].lower()
 
 
 def test_time_set(mock_hou):

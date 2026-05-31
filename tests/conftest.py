@@ -74,7 +74,9 @@ def make_hou_mock():
         def __getitem__(self, i): return (self.x, self.y)[i]
 
     class _Matrix4:
-        def asTuple(self): return tuple([tuple([0.0]*4)]*4)
+        def asTuple(self): return tuple([0.0] * 16)           # flat 16-float
+        def asTupleOfTuples(self): return tuple([tuple([0.0]*4)]*4)  # nested 4x4
+        def __init__(self, data=None): pass
 
     class _Color:
         def __init__(self, rgb=(0.6, 0.6, 0.6)): self._rgb = rgb
