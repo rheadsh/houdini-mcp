@@ -1,6 +1,7 @@
 {
     "name": "houdini-mcp",
     "path": "$HOUDINI_MCP_ROOT/houdini_side",
+    "pythonpath": "$HOUDINI_MCP_ROOT",
     "env": [
         { "HOUDINI_MCP_PORT": { "value": "9876" } },
         { "HOUDINI_MCP_ROOT": { "value": "$HOME/houdini-mcp" } }
