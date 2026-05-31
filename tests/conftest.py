@@ -194,4 +194,9 @@ def make_hou_mock():
 def mock_hou(monkeypatch):
     hou_mock = make_hou_mock()
     monkeypatch.setitem(sys.modules, "hou", hou_mock)
+    # Evict tool modules so each test gets a fresh import with the new hou mock.
+    _tool_prefix = "houdini_side.tools."
+    for key in list(sys.modules):
+        if key.startswith(_tool_prefix) or key == "houdini_side.tools":
+            monkeypatch.delitem(sys.modules, key, raising=False)
     return hou_mock
