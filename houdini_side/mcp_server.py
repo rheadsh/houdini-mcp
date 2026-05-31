@@ -47,13 +47,16 @@ def start_server(port=None):
 
         sse = SseServerTransport("/messages")
 
+        app = _mcp_app
+        assert app is not None, "MCP app was not initialized before _run()"
+
         async def handle_sse(request):
             async with sse.connect_sse(
                 request.scope, request.receive, request._send
             ) as streams:
-                await _mcp_app.run(
+                await app.run(
                     streams[0], streams[1],
-                    _mcp_app.create_initialization_options()
+                    app.create_initialization_options()
                 )
 
         starlette_app = Starlette(routes=[

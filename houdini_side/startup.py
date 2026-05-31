@@ -12,7 +12,7 @@ if _project_root not in sys.path:
 
 
 def _create_shelf():
-    import hou
+    import hou  # type: ignore[import-untyped]
 
     shelf_name = "houdini_mcp"
     try:
