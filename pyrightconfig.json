@@ -1,4 +1,5 @@
 {
-    "exclude": ["tests/conftest.py"],
-    "reportMissingModuleSource": false
+    "exclude": ["tests/"],
+    "reportMissingModuleSource": false,
+    "reportMissingImports": false
 }

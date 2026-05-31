@@ -1,4 +1,5 @@
 # tests/test_session.py
+import os
 import pytest
 
 
@@ -22,7 +23,8 @@ def test_hip_info_no_unsaved(mock_hou):
     assert result["data"]["has_unsaved_changes"] is False
 
 
-def test_hip_save_calls_hipfile(mock_hou):
+def test_hip_save_calls_hipfile_with_none(mock_hou):
+    """hip_save(None) skips path validation and saves to current path."""
     saved = []
     mock_hou.hipFile.save = lambda path=None: saved.append(path)
     mock_hou.hipFile.path = lambda: "/projects/test.hip"
@@ -32,14 +34,54 @@ def test_hip_save_calls_hipfile(mock_hou):
     assert saved == [None]
 
 
-def test_hip_load_calls_hipfile(mock_hou):
+def test_hip_save_with_valid_path(mock_hou, monkeypatch):
+    """hip_save with an explicit .hip path validates and saves."""
+    saved = []
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    mock_hou.hipFile.save = lambda path=None: saved.append(path)
+    mock_hou.hipFile.path = lambda: "/projects/test.hip"
+    from houdini_side.tools.session import _hip_save
+    result = _hip_save("/projects/test.hip")
+    assert result["success"] is True
+    assert len(saved) == 1
+    assert saved[0].endswith(".hip")
+
+
+def test_hip_save_rejects_non_hip_extension(mock_hou):
+    """hip_save rejects paths that don't end in .hip/.hiplc/.hipnc."""
+    from houdini_side.tools.session import _hip_save
+    result = _hip_save("/projects/scene.py")
+    assert result["success"] is False
+    assert "extension" in result["error"].lower() or "invalid" in result["error"].lower()
+
+
+def test_hip_load_calls_hipfile(mock_hou, monkeypatch):
+    """hip_load validates the path and calls hou.hipFile.load."""
     loaded = []
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
     mock_hou.hipFile.load = lambda path, suppress_save_prompt=True: loaded.append(path)
     mock_hou.hipFile.path = lambda: "/projects/scene.hip"
     from houdini_side.tools.session import _hip_load
     result = _hip_load("/projects/scene.hip")
     assert result["success"] is True
-    assert loaded == ["/projects/scene.hip"]
+    assert len(loaded) == 1
+    assert loaded[0].endswith(".hip")
+
+
+def test_hip_load_rejects_missing_file(mock_hou):
+    """hip_load returns error when file does not exist."""
+    from houdini_side.tools.session import _hip_load
+    result = _hip_load("/tmp/nonexistent.hip")
+    assert result["success"] is False
+    assert "not found" in result["error"].lower()
+
+
+def test_hip_load_rejects_non_hip_extension(mock_hou, monkeypatch):
+    """hip_load rejects files without .hip* extension."""
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    from houdini_side.tools.session import _hip_load
+    result = _hip_load("/projects/scene.abc")
+    assert result["success"] is False
 
 
 def test_hip_new_clears_scene(mock_hou):
@@ -52,13 +94,24 @@ def test_hip_new_clears_scene(mock_hou):
     assert cleared == [True]
 
 
-def test_hip_merge_calls_hipfile(mock_hou):
+def test_hip_merge_calls_hipfile(mock_hou, monkeypatch):
+    """hip_merge validates and merges a .hip file."""
     merged = []
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
     mock_hou.hipFile.merge = lambda path: merged.append(path)
     from houdini_side.tools.session import _hip_merge
     result = _hip_merge("/projects/other.hip")
     assert result["success"] is True
-    assert merged == ["/projects/other.hip"]
+    assert len(merged) == 1
+    assert merged[0].endswith(".hip")
+
+
+def test_hip_merge_rejects_non_hip(mock_hou, monkeypatch):
+    """hip_merge rejects non-.hip* files."""
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    from houdini_side.tools.session import _hip_merge
+    result = _hip_merge("/projects/scene.obj")
+    assert result["success"] is False
 
 
 def test_session_info_error_returns_err(mock_hou):

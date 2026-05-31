@@ -1,7 +1,36 @@
 """Session and hip file management tools."""
 import json
+import os
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+
+_HIP_SUFFIXES = (".hip", ".hiplc", ".hipnc")
+
+
+def _validate_hip_path(path: str, must_exist: bool = False) -> str:
+    """
+    Validate and canonicalize a hip file path.
+
+    Resolves symlinks (realpath) to defeat path-traversal attacks, enforces a
+    .hip/.hiplc/.hipnc suffix, and optionally restricts to HOUDINI_MCP_PROJECT_ROOT.
+    Returns the canonical path or raises ValueError.
+    """
+    real = os.path.realpath(path)
+    if not any(real.lower().endswith(s) for s in _HIP_SUFFIXES):
+        raise ValueError(
+            f"Invalid extension for {os.path.basename(real)!r}. "
+            "Only .hip, .hiplc, .hipnc are allowed."
+        )
+    root = os.environ.get("HOUDINI_MCP_PROJECT_ROOT", "")
+    if root:
+        root_real = os.path.realpath(root)
+        if not real.startswith(root_real + os.sep) and real != root_real:
+            raise ValueError(
+                f"Path {real!r} is outside HOUDINI_MCP_PROJECT_ROOT={root_real!r}."
+            )
+    if must_exist and not os.path.isfile(real):
+        raise ValueError(f"File not found: {real!r}")
+    return real
 
 
 def _session_info():
@@ -43,18 +72,22 @@ def _hip_new():
 
 def _hip_load(path: str):
     try:
+        safe = _validate_hip_path(path, must_exist=True)
+
         def work():
-            hou.hipFile.load(path, suppress_save_prompt=True)
+            hou.hipFile.load(safe, suppress_save_prompt=True)
             return ok({"path": hou.hipFile.path()})
         return dispatch(work)
     except Exception as e:
         return err(e)
 
 
-def _hip_save(path=None):
+def _hip_save(path: "str | None" = None):
     try:
+        safe: "str | None" = _validate_hip_path(path) if path is not None else None
+
         def work():
-            hou.hipFile.save(path)
+            hou.hipFile.save(safe)
             return ok({"path": hou.hipFile.path()})
         return dispatch(work)
     except Exception as e:
@@ -63,9 +96,11 @@ def _hip_save(path=None):
 
 def _hip_merge(path: str):
     try:
+        safe = _validate_hip_path(path, must_exist=True)
+
         def work():
-            hou.hipFile.merge(path)
-            return ok({"merged": path})
+            hou.hipFile.merge(safe)
+            return ok({"merged": safe})
         return dispatch(work)
     except Exception as e:
         return err(e)
@@ -95,7 +130,7 @@ def register(app):
         return [{"type": "text", "text": json.dumps(_hip_load(path))}]
 
     @app.tool("hip_save")
-    async def hip_save(path: str = None) -> list:
+    async def hip_save(path: "str | None" = None) -> list:
         """Save the current scene. Uses current path if path is omitted."""
         return [{"type": "text", "text": json.dumps(_hip_save(path))}]
 

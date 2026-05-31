@@ -19,10 +19,12 @@ except ImportError:
     _HOU_AVAILABLE = False
 
 
-def dispatch(fn):
+def dispatch(fn, label: str = ""):
     """
     Execute fn() on Houdini's main thread and return its result.
     Raises any exception fn() raises.
+
+    label: optional description used in TimeoutError messages for diagnostics.
     """
     if not _HOU_AVAILABLE or hou is None or not hou.isUIAvailable():
         return fn()
@@ -30,8 +32,11 @@ def dispatch(fn):
     result_holder: list[Any] = [None]
     exc_holder: list[Optional[Exception]] = [None]
     done = threading.Event()
+    cancelled = threading.Event()  # set on timeout so late callbacks skip fn()
 
     def _callback():
+        if cancelled.is_set():
+            return  # timed out — discard; do NOT call fn() to avoid side effects
         try:
             result_holder[0] = fn()
         except Exception as e:
@@ -40,10 +45,14 @@ def dispatch(fn):
             done.set()
 
     hou.postEventCallback(_callback)
-    done.wait(timeout=30.0)
+    timed_out = not done.wait(timeout=30.0)
 
-    if not done.is_set():
-        raise TimeoutError("Houdini main thread dispatch timed out after 30s")
+    if timed_out:
+        cancelled.set()
+        tool_name = label or getattr(fn, "__name__", repr(fn))
+        raise TimeoutError(
+            f"Houdini main thread dispatch timed out after 30s (tool: {tool_name})"
+        )
     if exc_holder[0] is not None:
         raise exc_holder[0]
     return result_holder[0]
