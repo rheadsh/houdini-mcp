@@ -59,13 +59,13 @@ powershell -ExecutionPolicy Bypass -File install\setup.ps1
 
 In Houdini: **Shelf → Houdini MCP → Start MCP Server**
 
-The server starts on `http://localhost:9876/sse` (configurable via `HOUDINI_MCP_PORT`).
+The server starts on `http://localhost:9876/mcp` (configurable via `HOUDINI_MCP_PORT`).
 
 Useful package/env settings:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `HOUDINI_MCP_PORT` | `9876` | Local SSE server port |
+| `HOUDINI_MCP_PORT` | `9876` | Local HTTP server port |
 | `HOUDINI_MCP_DISPATCH_TIMEOUT` | `30` | Default main-thread dispatch timeout in seconds |
 | `HOUDINI_MCP_TIMEOUT_<TOOL>` | — | Per-tool timeout override, e.g. `HOUDINI_MCP_TIMEOUT_ROP_RENDER_START=300` |
 | `HOUDINI_MCP_PROJECT_ROOT` | — | Optional hip-file sandbox root |
@@ -78,7 +78,8 @@ Add to `claude_desktop_config.json`:
 {
   "mcpServers": {
     "houdini": {
-      "url": "http://localhost:9876/sse"
+      "type": "http",
+      "url": "http://localhost:9876/mcp"
     }
   }
 }
