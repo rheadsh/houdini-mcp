@@ -120,3 +120,34 @@ def test_session_info_error_returns_err(mock_hou):
     result = _session_info()
     assert result["success"] is False
     assert "error" in result
+
+
+def test_validate_hip_path_traversal_blocked(monkeypatch):
+    """Path traversal outside project root is blocked."""
+    import os
+    monkeypatch.setenv("HOUDINI_MCP_PROJECT_ROOT", "/projects")
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    from houdini_side.tools.session import _validate_hip_path
+    import pytest
+    with pytest.raises(ValueError, match="outside HOUDINI_MCP_PROJECT_ROOT"):
+        _validate_hip_path("/projects/../etc/passwd.hip")
+
+
+def test_validate_hip_path_subdirectory_allowed(monkeypatch):
+    """Paths inside project root are allowed."""
+    import os
+    monkeypatch.setenv("HOUDINI_MCP_PROJECT_ROOT", "/projects")
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    from houdini_side.tools.session import _validate_hip_path
+    result = _validate_hip_path("/projects/shots/s001.hip")
+    assert result.endswith(".hip")
+
+
+def test_validate_hip_path_no_root_allows_any(monkeypatch):
+    """When HOUDINI_MCP_PROJECT_ROOT not set, any .hip path is allowed."""
+    import os
+    monkeypatch.delenv("HOUDINI_MCP_PROJECT_ROOT", raising=False)
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    from houdini_side.tools.session import _validate_hip_path
+    result = _validate_hip_path("/etc/test.hip")
+    assert result.endswith(".hip")

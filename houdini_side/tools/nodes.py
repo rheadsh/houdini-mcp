@@ -51,7 +51,7 @@ def _node_get(path: str):
             if node is None:
                 raise ValueError(f"Node not found: {path!r}")
             return ok(_node_info(node))
-        return dispatch(work)
+        return dispatch(work, label="node_get")
     except Exception as e:
         return err(e)
 
@@ -66,7 +66,7 @@ def _node_list(network_path: str, type_filter: "str | None" = None):
             if type_filter:
                 children = [c for c in children if c.type().name() == type_filter]
             return ok({"nodes": [_node_info(c) for c in children]})
-        return dispatch(work)
+        return dispatch(work, label="node_list")
     except Exception as e:
         return err(e)
 
@@ -80,7 +80,7 @@ def _node_create(parent_path: str, node_type: str, name: "str | None" = None):
                     raise ValueError(f"Parent network not found: {parent_path!r}")
                 node = parent.createNode(node_type, name)
                 return ok(_node_info(node))
-        return dispatch(work)
+        return dispatch(work, label="node_create")
     except Exception as e:
         return err(e)
 
@@ -93,8 +93,8 @@ def _node_delete(path: str):
                 if node is None:
                     raise ValueError(f"Node not found: {path!r}")
                 node.destroy()
-            return ok({"deleted": path})
-        return dispatch(work)
+                return ok({"deleted": path})
+        return dispatch(work, label="node_delete")
     except Exception as e:
         return err(e)
 
@@ -108,7 +108,7 @@ def _node_rename(path: str, new_name: str):
                     raise ValueError(f"Node not found: {path!r}")
                 node.setName(new_name)
                 return ok({"path": node.path(), "name": node.name()})
-        return dispatch(work)
+        return dispatch(work, label="node_rename")
     except Exception as e:
         return err(e)
 
@@ -121,8 +121,8 @@ def _node_move(path: str, x: float, y: float):
                 if node is None:
                     raise ValueError(f"Node not found: {path!r}")
                 node.setPosition(hou.Vector2(x, y))
-            return ok({"path": path, "position": [x, y]})
-        return dispatch(work)
+                return ok({"path": path, "position": [x, y]})
+        return dispatch(work, label="node_move")
     except Exception as e:
         return err(e)
 
@@ -139,8 +139,8 @@ def _node_connect(from_path: str, from_output: int,
                 if dst is None:
                     raise ValueError(f"Dest node not found: {to_path!r}")
                 dst.setInput(to_input, src, from_output)
-            return ok({"connected": f"{from_path}[{from_output}]->{to_path}[{to_input}]"})
-        return dispatch(work)
+                return ok({"connected": f"{from_path}[{from_output}]->{to_path}[{to_input}]"})
+        return dispatch(work, label="node_connect")
     except Exception as e:
         return err(e)
 
@@ -153,8 +153,8 @@ def _node_disconnect(to_path: str, to_input: int):
                 if dst is None:
                     raise ValueError(f"Node not found: {to_path!r}")
                 dst.setInput(to_input, None)
-            return ok({"disconnected": f"{to_path}[{to_input}]"})
-        return dispatch(work)
+                return ok({"disconnected": f"{to_path}[{to_input}]"})
+        return dispatch(work, label="node_disconnect")
     except Exception as e:
         return err(e)
 
@@ -167,8 +167,8 @@ def _node_bypass(path: str, on: bool):
                 if node is None:
                     raise ValueError(f"Node not found: {path!r}")
                 node.bypass(on)
-            return ok({"path": path, "bypassed": on})
-        return dispatch(work)
+                return ok({"path": path, "bypassed": on})
+        return dispatch(work, label="node_bypass")
     except Exception as e:
         return err(e)
 
@@ -178,7 +178,7 @@ _FLAG_METHODS = {
     "render": "setRenderFlag",
     "template": "setTemplateFlag",
     "highlight": "setHighlightFlag",
-    "bypass": "bypass",
+    # Note: use node_bypass tool for bypass flag
 }
 
 
@@ -188,15 +188,15 @@ def _node_set_flag(path: str, flag: str, on: bool):
             method_name = _FLAG_METHODS.get(flag)
             if not method_name:
                 raise ValueError(
-                    f"Unknown flag: {flag!r}. Valid: {list(_FLAG_METHODS)}"
+                    f"Unknown flag: {flag!r}. Valid: display | render | template | highlight"
                 )
             with hou.undos.group(f"mcp: set flag {flag}"):
                 node = hou.node(path)
                 if node is None:
                     raise ValueError(f"Node not found: {path!r}")
                 getattr(node, method_name)(on)
-            return ok({"path": path, "flag": flag, "value": on})
-        return dispatch(work)
+                return ok({"path": path, "flag": flag, "value": on})
+        return dispatch(work, label="node_set_flag")
     except Exception as e:
         return err(e)
 
@@ -209,7 +209,7 @@ def _node_cook(path: str):
                 raise ValueError(f"Node not found: {path!r}")
             node.cook(force=True)
             return ok({"cooked": path})
-        return dispatch(work)
+        return dispatch(work, label="node_cook")
     except Exception as e:
         return err(e)
 
@@ -222,8 +222,8 @@ def _node_layout(network_path: str):
                 if parent is None:
                     raise ValueError(f"Network not found: {network_path!r}")
                 parent.layoutChildren()
-            return ok({"laid_out": network_path})
-        return dispatch(work)
+                return ok({"laid_out": network_path})
+        return dispatch(work, label="node_layout")
     except Exception as e:
         return err(e)
 
@@ -253,12 +253,12 @@ def _node_type_list(context: str):
             cat = getattr(hou, fn_name)()
             types_list = sorted(cat.nodeTypes().keys())
             return ok({"context": context, "types": types_list})
-        return dispatch(work)
+        return dispatch(work, label="node_type_list")
     except Exception as e:
         return err(e)
 
 
-def _node_copy_paste(source_paths: list, dest_network: str):
+def _node_copy_paste(source_paths: list, network_path: str):
     try:
         def work():
             with hou.undos.group("mcp: copy-paste nodes"):
@@ -268,12 +268,12 @@ def _node_copy_paste(source_paths: list, dest_network: str):
                     if n is None:
                         raise ValueError(f"Source node not found: {p!r}")
                     nodes.append(n)
-                dest = hou.node(dest_network)
+                dest = hou.node(network_path)
                 if dest is None:
-                    raise ValueError(f"Dest network not found: {dest_network!r}")
+                    raise ValueError(f"Dest network not found: {network_path!r}")
                 pasted = hou.copyNodesTo(nodes, dest)
                 return ok({"pasted": [n.path() for n in pasted]})
-        return dispatch(work)
+        return dispatch(work, label="node_copy_paste")
     except Exception as e:
         return err(e)
 
@@ -288,10 +288,15 @@ def _network_box_create(network_path: str, name: str,
                     raise ValueError(f"Network not found: {network_path!r}")
                 box = parent.createNetworkBox()
                 box.setComment(name)
-                if color:
+                if color is not None:
+                    if not (isinstance(color, (list, tuple)) and len(color) == 3
+                            and all(isinstance(v, (int, float)) for v in color)):
+                        raise ValueError(
+                            f"color must be a list of exactly 3 numeric values (r, g, b), got: {color!r}"
+                        )
                     box.setColor(hou.Color(color))
                 return ok({"comment": name})
-        return dispatch(work)
+        return dispatch(work, label="network_box_create")
     except Exception as e:
         return err(e)
 
@@ -308,7 +313,7 @@ def _sticky_note_create(network_path: str, text: str,
                 note.setText(text)
                 note.setPosition(hou.Vector2(x, y))
                 return ok({"text": text, "position": [x, y]})
-        return dispatch(work)
+        return dispatch(work, label="sticky_note_create")
     except Exception as e:
         return err(e)
 
@@ -367,7 +372,7 @@ def register(app):
 
     @app.tool("node_set_flag")
     async def node_set_flag(path: str, flag: str, on: bool) -> list:
-        """Set a node flag. flag: display | render | template | highlight | bypass."""
+        """Set a node flag. flag: display | render | template | highlight. Use node_bypass for bypass."""
         return [{"type": "text", "text": json.dumps(_node_set_flag(path, flag, on))}]
 
     @app.tool("node_cook")
@@ -386,9 +391,9 @@ def register(app):
         return [{"type": "text", "text": json.dumps(_node_type_list(context))}]
 
     @app.tool("node_copy_paste")
-    async def node_copy_paste(source_paths: list, dest_network: str) -> list:
-        """Copy nodes and paste them into dest_network."""
-        return [{"type": "text", "text": json.dumps(_node_copy_paste(source_paths, dest_network))}]
+    async def node_copy_paste(source_paths: list, network_path: str) -> list:
+        """Copy nodes and paste them into network_path."""
+        return [{"type": "text", "text": json.dumps(_node_copy_paste(source_paths, network_path))}]
 
     @app.tool("network_box_create")
     async def network_box_create(network_path: str, name: str,
