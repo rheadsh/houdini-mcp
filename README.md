@@ -55,6 +55,51 @@ powershell -ExecutionPolicy Bypass -File install\setup.ps1
 > **Tip:** `HOUDINI_USER_PREF_DIR` is typically  
 > `C:\Users\<user>\Documents\houdini20.5` (adjust for your Houdini version).
 
+## Security and production warnings
+
+This project is intended to run as a local development tool inside an active
+Houdini session. Treat access to this MCP server as equivalent to giving a
+client control over your Houdini scene.
+
+The server exposes tools that can modify the current scene, create and delete
+nodes, save and load files, run renders, cook PDG graphs, install or edit HDAs,
+change Houdini environment variables, and execute Houdini expressions or
+hscript commands.
+
+Important limitations:
+
+- The server binds to `127.0.0.1` by default and is not designed to be exposed
+  to a LAN, VPN, public IP, reverse proxy, or the internet.
+- Binding to localhost does not protect against untrusted local processes,
+  tunneling, proxying, SSH forwarding, Docker port publishing, or manually
+  changing the bind address.
+- Do not run this server on shared machines unless you understand which local
+  users and processes can access `localhost`.
+- Some tools can overwrite files, modify HDAs, inject executable HDA section
+  code, or change scene state.
+- `HOUDINI_MCP_PROJECT_ROOT` currently restricts hip-file operations, but not
+  every file-related tool is sandboxed.
+- `run_hscript`, `eval_expression`, `parm_set_expression`, `hda_section_set`,
+  `hda_install`, render, PDG, and file export tools should be considered
+  high-trust operations.
+- No authentication, authorization, per-tool permission model, audit log, or
+  confirmation flow is currently implemented.
+- Use a clean test scene before connecting an AI client. Unsaved Houdini
+  changes may be lost through tools such as `hip_new`, `hip_load`, or
+  destructive node operations.
+- Unit tests are included, but full behavior depends on Houdini, installed
+  renderers, HDAs, USD support, and platform-specific hython environments.
+
+Recommended safe usage:
+
+- Run only on your own workstation.
+- Keep the server bound to `127.0.0.1`.
+- Use `HOUDINI_MCP_PROJECT_ROOT` when working with project files.
+- Start with disposable `.hip` files until you trust the workflow.
+- Do not connect untrusted MCP clients.
+- Do not expose the port through tunneling tools, proxies, Docker port
+  publishing, SSH remote forwards, or shared dev environments.
+
 ## Start the server
 
 In Houdini: **Shelf → Houdini MCP → Start MCP Server**
@@ -93,6 +138,10 @@ Set `HOUDINI_MCP_PROJECT_ROOT` to limit hip file operations to a directory:
 export HOUDINI_MCP_PROJECT_ROOT=/projects/myshow
 ```
 
+This is a partial safeguard. It applies to hip-file operations such as
+`hip_load`, `hip_save`, and `hip_merge`; it is not a complete sandbox for every
+tool that reads or writes files.
+
 ## Test
 
 ```bash
@@ -121,6 +170,11 @@ hython -m pytest tests/test_integration.py -v
 | Takes | 4 | `take_` |
 | VEX/VOPs | 7 | `vex_`, `vop_` |
 | Utilities | 14 | `run_hscript`, `eval_expression`, `expand_string`, `undo`, `redo`, etc. |
+
+> **Warning:** Utility and HDA tools include high-trust operations. In
+> particular, `run_hscript`, `eval_expression`, `env_set`, `hda_install`, and
+> `hda_section_set` can affect Houdini state or execute code. Use only with
+> trusted MCP clients.
 
 ## Tool reference
 
