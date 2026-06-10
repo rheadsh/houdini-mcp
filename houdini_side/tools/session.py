@@ -3,6 +3,7 @@ import json
 import os
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import enforce_project_root
 
 _HIP_SUFFIXES = (".hip", ".hiplc", ".hipnc")
 
@@ -21,13 +22,7 @@ def _validate_hip_path(path: str, must_exist: bool = False) -> str:
             f"Invalid extension for {os.path.basename(real)!r}. "
             "Only .hip, .hiplc, .hipnc are allowed."
         )
-    root = os.environ.get("HOUDINI_MCP_PROJECT_ROOT", "")
-    if root:
-        root_real = os.path.realpath(root)
-        if not real.startswith(root_real + os.sep) and real != root_real:
-            raise ValueError(
-                f"Path {real!r} is outside HOUDINI_MCP_PROJECT_ROOT={root_real!r}."
-            )
+    enforce_project_root(real)
     if must_exist and not os.path.isfile(real):
         raise ValueError(f"File not found: {real!r}")
     return real

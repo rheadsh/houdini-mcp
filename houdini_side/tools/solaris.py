@@ -1,6 +1,9 @@
 """Solaris/USD LOP tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import resolve_output_path
+
+_USD_SUFFIXES = (".usd", ".usda", ".usdc", ".usdz")
 
 try:
     from pxr import Usd, Sdf  # type: ignore[import-untyped]
@@ -244,8 +247,9 @@ def _lop_save_usd(lop_path: str, file_path: str):
             stage = node.stage()
             if stage is None:
                 raise ValueError(f"No USD stage on {lop_path!r}")
-            stage.Export(file_path)
-            return ok({"saved_to": file_path})
+            safe_path = resolve_output_path(hou, file_path, _USD_SUFFIXES)
+            stage.Export(safe_path)
+            return ok({"saved_to": safe_path})
         return dispatch(work, label="lop_save_usd")
     except Exception as e:
         return err(e)

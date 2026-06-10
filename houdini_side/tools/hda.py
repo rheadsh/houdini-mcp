@@ -1,6 +1,9 @@
 """Houdini Digital Asset (HDA) management tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import resolve_output_path
+
+_HDA_SUFFIXES = (".hda", ".hdanc", ".hdalc", ".otl", ".otlnc", ".otllc")
 
 
 def _hda_list():
@@ -159,7 +162,10 @@ def _hda_save(node_path: str, hda_file_path: "str | None" = None):
                 defn = node.type().definition()
                 if defn is None:
                     raise ValueError(f"Node {node_path!r} is not an HDA instance")
-                save_path = hda_file_path or defn.libraryFilePath()
+                if hda_file_path:
+                    save_path = resolve_output_path(hou, hda_file_path, _HDA_SUFFIXES)
+                else:
+                    save_path = defn.libraryFilePath()
                 defn.save(save_path)
                 return ok({"saved_to": save_path})
         return dispatch(work, label="hda_save")
@@ -178,11 +184,12 @@ def _hda_create(node_paths: list, hda_name: str, hda_label: str,
                     if n is None:
                         raise ValueError(f"Node not found: {p!r}")
                     nodes.append(n)
+                safe_path = resolve_output_path(hou, hda_file_path, _HDA_SUFFIXES)
                 new_node = nodes[0].createDigitalAsset(
-                    hda_name, hda_file_path, hda_label
+                    hda_name, safe_path, hda_label
                 )
                 return ok({"hda_name": hda_name,
-                           "file": hda_file_path,
+                           "file": safe_path,
                            "node": new_node.path()})
         return dispatch(work, label="hda_create")
     except Exception as e:

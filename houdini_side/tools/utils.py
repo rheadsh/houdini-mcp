@@ -1,8 +1,13 @@
 """Utility and miscellaneous tools."""
+import os
 import sys
 import platform
+import tempfile
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import resolve_output_path
+
+_IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".exr", ".tif", ".tiff")
 
 
 def _run_hscript(command: str):
@@ -148,7 +153,10 @@ def _viewport_screenshot(file_path: "str | None" = None):
             viewer = ui.paneTabOfType(pane_tab_type.SceneViewer)
             if viewer is None:
                 raise RuntimeError("No Scene Viewer pane tab found")
-            out_path = file_path or "/tmp/mcp_screenshot.png"
+            raw_path = file_path or os.path.join(
+                tempfile.gettempdir(), "mcp_screenshot.png"
+            )
+            out_path = resolve_output_path(hou, raw_path, _IMAGE_SUFFIXES)
             viewer.curViewport().saveViewToFile(out_path)
             return ok({"saved_to": out_path})
         return dispatch(work, label="viewport_screenshot")
