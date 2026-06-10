@@ -107,7 +107,6 @@ $package = [ordered]@{
         @{ HOUDINI_MCP_ROOT = @{ value = $repoRootJson } }
         @{ PYTHONPATH = @{ value = $repoRootJson; method = "prepend" } }
     )
-    houdini456 = @("$repoRootJson/houdini_side/startup.py")
 }
 
 $package | ConvertTo-Json -Depth 8 | Set-Content -Path $packageFile -Encoding UTF8

@@ -6,6 +6,5 @@
         { "HOUDINI_MCP_DISPATCH_TIMEOUT": { "value": "30" } },
         { "HOUDINI_MCP_ROOT": { "value": "$HOME/houdini-mcp" } },
         { "PYTHONPATH": { "value": "$HOUDINI_MCP_ROOT", "method": "prepend" } }
-    ],
-    "houdini456": [ "$HOUDINI_MCP_ROOT/houdini_side/startup.py" ]
+    ]
 }

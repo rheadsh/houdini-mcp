@@ -63,8 +63,7 @@ cat > "$PACKAGE_FILE" <<EOF
         { "HOUDINI_MCP_DISPATCH_TIMEOUT": { "value": "30" } },
         { "HOUDINI_MCP_ROOT": { "value": "$REPO_ROOT" } },
         { "PYTHONPATH": { "value": "$REPO_ROOT", "method": "prepend" } }
-    ],
-    "houdini456": [ "$REPO_ROOT/houdini_side/startup.py" ]
+    ]
 }
 EOF
 
