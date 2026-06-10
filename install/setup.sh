@@ -39,7 +39,8 @@ fi
 echo "Using hython: $HYTHON_BIN"
 echo "Repo root: $REPO_ROOT"
 
-"$HYTHON_BIN" -m pip install -r "$REPO_ROOT/requirements.txt" --upgrade
+# No --upgrade: avoid replacing packages bundled with Houdini's Python.
+"$HYTHON_BIN" -m pip install -r "$REPO_ROOT/requirements.txt"
 
 PREF_DIR="$("$HYTHON_BIN" -c 'import hou; print(hou.getenv("HOUDINI_USER_PREF_DIR") or "")')"
 if [ -z "$PREF_DIR" ]; then

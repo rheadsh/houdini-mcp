@@ -1,3 +1,6 @@
-mcp>=1.0.0
-starlette>=0.37.2
-uvicorn>=0.30.0
+# Installed into Houdini's bundled Python (hython) by install/setup.*.
+# Upper bounds are deliberate: an unbounded upgrade could replace packages
+# that Houdini ships with (anyio, pydantic, ...) and break the installation.
+mcp>=1.0.0,<2
+starlette>=0.37.2,<1
+uvicorn>=0.30.0,<1

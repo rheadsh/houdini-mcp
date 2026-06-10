@@ -83,7 +83,8 @@ if (-not (Test-Path $requirements)) {
     throw "Runtime requirements file not found: $requirements"
 }
 
-& $hythonPath -m pip install -r $requirements --upgrade
+# No --upgrade: avoid replacing packages bundled with Houdini's Python.
+& $hythonPath -m pip install -r $requirements
 if ($LASTEXITCODE -ne 0) {
     throw "pip install failed with exit code $LASTEXITCODE"
 }
