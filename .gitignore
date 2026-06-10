@@ -1,4 +1,16 @@
+# Python
 *.pyc
 __pycache__/
+.pytest_cache/
+.venv/
+venv/
 
+# OS
+.DS_Store
+
+# Local tooling/config
+.claude/settings.local.json
+
+# Internal design docs and local test sandbox (not published)
 docs/*
+mcp-testing/
