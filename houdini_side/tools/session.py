@@ -1,9 +1,8 @@
 """Session and hip file management tools."""
-import json
 import os
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import enforce_project_root
+from houdini_side.tools.common import enforce_project_root, as_text
 
 _HIP_SUFFIXES = (".hip", ".hiplc", ".hipnc")
 
@@ -107,29 +106,29 @@ def register(app):
     @app.tool("session_info")
     async def session_info() -> list:
         """Get Houdini version, application name, user and UI availability."""
-        return [{"type": "text", "text": json.dumps(_session_info())}]
+        return as_text(_session_info())
 
     @app.tool("hip_info")
     async def hip_info() -> list:
         """Get current scene file path and unsaved-changes status."""
-        return [{"type": "text", "text": json.dumps(_hip_info())}]
+        return as_text(_hip_info())
 
     @app.tool("hip_new")
     async def hip_new() -> list:
         """Clear the scene (new empty hip file). Unsaved changes will be lost."""
-        return [{"type": "text", "text": json.dumps(_hip_new())}]
+        return as_text(_hip_new())
 
     @app.tool("hip_load")
     async def hip_load(path: str) -> list:
         """Load a .hip or .hiplc file from disk."""
-        return [{"type": "text", "text": json.dumps(_hip_load(path))}]
+        return as_text(_hip_load(path))
 
     @app.tool("hip_save")
     async def hip_save(path: "str | None" = None) -> list:
         """Save the current scene. Uses current path if path is omitted."""
-        return [{"type": "text", "text": json.dumps(_hip_save(path))}]
+        return as_text(_hip_save(path))
 
     @app.tool("hip_merge")
     async def hip_merge(path: str) -> list:
         """Merge another .hip file into the current scene."""
-        return [{"type": "text", "text": json.dumps(_hip_merge(path))}]
+        return as_text(_hip_merge(path))

@@ -1,6 +1,7 @@
 """PDG/TOP graph tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text, as_list
 
 
 def _safe_call(obj, name, default=None, *args, **kwargs):
@@ -21,17 +22,6 @@ def _safe_attr_or_call(obj, name, default=None):
         except Exception:
             return default
     return value
-
-
-def _as_list(value):
-    if value is None:
-        return []
-    if isinstance(value, (list, tuple, set)):
-        return list(value)
-    try:
-        return list(value)  # type: ignore[arg-type]
-    except TypeError:
-        return [value]
 
 
 def _state_name(value):
@@ -79,7 +69,7 @@ def _work_item_outputs(item):
         outputs = _safe_call(item, "expectedOutputFiles")
     if outputs is None:
         outputs = _safe_attr_or_call(item, "outputs", [])
-    return [str(path) for path in _as_list(outputs)]
+    return [str(path) for path in as_list(outputs)]
 
 
 def _work_item_logs(item):
@@ -263,47 +253,46 @@ def _pdg_logs(top_net_path: str, node_name: "str | None" = None,
 
 
 def register(app):
-    import json
 
     @app.tool("pdg_cook")
     async def pdg_cook(top_net_path: str) -> list:
         """Start cooking a PDG/TOP network asynchronously."""
-        return [{"type": "text", "text": json.dumps(_pdg_cook(top_net_path))}]
+        return as_text(_pdg_cook(top_net_path))
 
     @app.tool("pdg_dirty")
     async def pdg_dirty(top_net_path: str, node_name: "str | None" = None) -> list:
         """Mark a TOP network or specific node as dirty (needs re-cook)."""
-        return [{"type": "text", "text": json.dumps(_pdg_dirty(top_net_path, node_name))}]
+        return as_text(_pdg_dirty(top_net_path, node_name))
 
     @app.tool("pdg_cancel")
     async def pdg_cancel(top_net_path: str) -> list:
         """Cancel an active PDG cook."""
-        return [{"type": "text", "text": json.dumps(_pdg_cancel(top_net_path))}]
+        return as_text(_pdg_cancel(top_net_path))
 
     @app.tool("pdg_status")
     async def pdg_status(top_net_path: str) -> list:
         """Get the current cook state of a TOP network."""
-        return [{"type": "text", "text": json.dumps(_pdg_status(top_net_path))}]
+        return as_text(_pdg_status(top_net_path))
 
     @app.tool("pdg_output_list")
     async def pdg_output_list(top_net_path: str, node_name: "str | None" = None) -> list:
         """List output file paths from PDG work items."""
-        return [{"type": "text", "text": json.dumps(_pdg_output_list(top_net_path, node_name))}]
+        return as_text(_pdg_output_list(top_net_path, node_name))
 
     @app.tool("pdg_workitems")
     async def pdg_workitems(top_net_path: str, node_name: "str | None" = None,
                             include_logs: bool = False) -> list:
         """List PDG work items with defensive metadata extraction."""
-        return [{"type": "text", "text": json.dumps(_pdg_workitems(top_net_path, node_name, include_logs))}]
+        return as_text(_pdg_workitems(top_net_path, node_name, include_logs))
 
     @app.tool("pdg_failed_items")
     async def pdg_failed_items(top_net_path: str, node_name: "str | None" = None,
                                include_logs: bool = True) -> list:
         """List failed PDG work items, including logs by default."""
-        return [{"type": "text", "text": json.dumps(_pdg_failed_items(top_net_path, node_name, include_logs))}]
+        return as_text(_pdg_failed_items(top_net_path, node_name, include_logs))
 
     @app.tool("pdg_logs")
     async def pdg_logs(top_net_path: str, node_name: "str | None" = None,
                        failed_only: bool = False) -> list:
         """Collect log/message metadata from PDG work items."""
-        return [{"type": "text", "text": json.dumps(_pdg_logs(top_net_path, node_name, failed_only))}]
+        return as_text(_pdg_logs(top_net_path, node_name, failed_only))

@@ -1,17 +1,7 @@
 """Node creation, deletion, wiring, flags, and network management tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-
-
-def _set_node_parm(node, parm_name: str, value):
-    parm = node.parm(parm_name)
-    if parm is None:
-        pt = node.parmTuple(parm_name)
-        if pt is None:
-            raise ValueError(f"Parameter not found: {parm_name!r}")
-        pt.set(value if isinstance(value, (list, tuple)) else [value])
-    else:
-        parm.set(value)
+from houdini_side.tools.common import as_text, set_node_parm
 
 
 def _node_info(node):
@@ -117,7 +107,7 @@ def _node_create_many(parent_path: str, specs: list):
                     parms = spec.get("parms")
                     if parms:
                         for parm_name, value in parms.items():
-                            _set_node_parm(node, parm_name, value)
+                            set_node_parm(node, parm_name, value)
                     created.append(_node_info(node))
                 return ok({"count": len(created), "nodes": created})
         return dispatch(work, label="node_create_many")
@@ -455,104 +445,101 @@ def _sticky_note_create(network_path: str, text: str,
 
 def register(app):
     """Register all 19 node management tools."""
-    import json
 
     @app.tool("node_get")
     async def node_get(path: str) -> list:
         """Get info about a node: type, flags, connections, color, position."""
-        return [{"type": "text", "text": json.dumps(_node_get(path))}]
+        return as_text(_node_get(path))
 
     @app.tool("node_list")
     async def node_list(network_path: str, type_filter: "str | None" = None) -> list:
         """List all children of a network. Optional type_filter (e.g. 'box')."""
-        return [{"type": "text", "text": json.dumps(_node_list(network_path, type_filter))}]
+        return as_text(_node_list(network_path, type_filter))
 
     @app.tool("node_create")
     async def node_create(parent_path: str, node_type: str, name: "str | None" = None) -> list:
         """Create a node inside a network. Use node_type_list to get valid types."""
-        return [{"type": "text", "text": json.dumps(_node_create(parent_path, node_type, name))}]
+        return as_text(_node_create(parent_path, node_type, name))
 
     @app.tool("node_create_many")
     async def node_create_many(parent_path: str, specs: list) -> list:
         """Create many nodes in one undo group. specs: [{node_type, name?, position?, parms?}]."""
-        return [{"type": "text", "text": json.dumps(_node_create_many(parent_path, specs))}]
+        return as_text(_node_create_many(parent_path, specs))
 
     @app.tool("node_delete")
     async def node_delete(path: str) -> list:
         """Delete a node permanently (undoable)."""
-        return [{"type": "text", "text": json.dumps(_node_delete(path))}]
+        return as_text(_node_delete(path))
 
     @app.tool("node_rename")
     async def node_rename(path: str, new_name: str) -> list:
         """Rename a node."""
-        return [{"type": "text", "text": json.dumps(_node_rename(path, new_name))}]
+        return as_text(_node_rename(path, new_name))
 
     @app.tool("node_move")
     async def node_move(path: str, x: float, y: float) -> list:
         """Move a node to (x, y) in the network editor."""
-        return [{"type": "text", "text": json.dumps(_node_move(path, x, y))}]
+        return as_text(_node_move(path, x, y))
 
     @app.tool("node_connect")
     async def node_connect(from_path: str, from_output: int,
                             to_path: str, to_input: int) -> list:
         """Wire from_path[from_output] to to_path[to_input]."""
-        return [{"type": "text", "text": json.dumps(
-            _node_connect(from_path, from_output, to_path, to_input)
-        )}]
+        return as_text(_node_connect(from_path, from_output, to_path, to_input))
 
     @app.tool("node_connect_many")
     async def node_connect_many(connections: list) -> list:
         """Wire many connections in one undo group. items: [{from_path, from_output, to_path, to_input}]."""
-        return [{"type": "text", "text": json.dumps(_node_connect_many(connections))}]
+        return as_text(_node_connect_many(connections))
 
     @app.tool("node_disconnect")
     async def node_disconnect(to_path: str, to_input: int) -> list:
         """Disconnect an input on a node."""
-        return [{"type": "text", "text": json.dumps(_node_disconnect(to_path, to_input))}]
+        return as_text(_node_disconnect(to_path, to_input))
 
     @app.tool("node_bypass")
     async def node_bypass(path: str, on: bool) -> list:
         """Toggle bypass flag on a node."""
-        return [{"type": "text", "text": json.dumps(_node_bypass(path, on))}]
+        return as_text(_node_bypass(path, on))
 
     @app.tool("node_set_flag")
     async def node_set_flag(path: str, flag: str, on: bool) -> list:
         """Set a node flag. flag: display | render | template | highlight. Use node_bypass for bypass."""
-        return [{"type": "text", "text": json.dumps(_node_set_flag(path, flag, on))}]
+        return as_text(_node_set_flag(path, flag, on))
 
     @app.tool("node_cook")
     async def node_cook(path: str) -> list:
         """Force-cook a node."""
-        return [{"type": "text", "text": json.dumps(_node_cook(path))}]
+        return as_text(_node_cook(path))
 
     @app.tool("node_layout")
     async def node_layout(network_path: str) -> list:
         """Auto-layout all nodes in a network."""
-        return [{"type": "text", "text": json.dumps(_node_layout(network_path))}]
+        return as_text(_node_layout(network_path))
 
     @app.tool("node_type_list")
     async def node_type_list(context: str) -> list:
         """List all node types in context: sop|obj|dop|rop|lop|top|cop2|vop|shop|chop."""
-        return [{"type": "text", "text": json.dumps(_node_type_list(context))}]
+        return as_text(_node_type_list(context))
 
     @app.tool("node_type_info")
     async def node_type_info(context: str, node_type: str) -> list:
         """Get metadata for one node type in context: sop|obj|dop|rop|lop|top|cop2|vop|shop|chop."""
-        return [{"type": "text", "text": json.dumps(_node_type_info(context, node_type))}]
+        return as_text(_node_type_info(context, node_type))
 
     @app.tool("node_copy_paste")
     async def node_copy_paste(source_paths: list, network_path: str) -> list:
         """Copy nodes and paste them into network_path."""
-        return [{"type": "text", "text": json.dumps(_node_copy_paste(source_paths, network_path))}]
+        return as_text(_node_copy_paste(source_paths, network_path))
 
     @app.tool("network_box_create")
     async def network_box_create(network_path: str, name: str,
                                   color: "list | None" = None) -> list:
         """Create a network box with a label. color is [r, g, b] floats 0-1."""
-        return [{"type": "text", "text": json.dumps(_network_box_create(network_path, name, color))}]
+        return as_text(_network_box_create(network_path, name, color))
 
     @app.tool("sticky_note_create")
     async def sticky_note_create(network_path: str, text: str,
                                   x: float, y: float) -> list:
         """Create a sticky note at position (x, y) in the network editor."""
-        return [{"type": "text", "text": json.dumps(_sticky_note_create(network_path, text, x, y))}]
+        return as_text(_sticky_note_create(network_path, text, x, y))

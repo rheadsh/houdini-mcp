@@ -1,7 +1,7 @@
 """Solaris/USD LOP tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import resolve_output_path
+from houdini_side.tools.common import resolve_output_path, as_text, as_list
 
 _USD_SUFFIXES = (".usd", ".usda", ".usdc", ".usdz")
 
@@ -30,17 +30,6 @@ def _usd_path(value):
             return str(value.GetPath())
         except Exception:
             return str(value)
-
-
-def _as_list(value):
-    if value is None:
-        return []
-    if isinstance(value, (list, tuple, set)):
-        return list(value)
-    try:
-        return list(value)  # type: ignore[arg-type]
-    except TypeError:
-        return [value]
 
 
 def _get_lop_stage(lop_path: str):
@@ -86,7 +75,7 @@ def _lop_layer_stack(lop_path: str):
                 get_layers = getattr(stage, "GetUsedLayers", None)
             if callable(get_layers):
                 raw_layers = get_layers()
-                for layer in _as_list(raw_layers):
+                for layer in as_list(raw_layers):
                     layers.append({
                         "identifier": getattr(layer, "identifier", ""),
                         "real_path": getattr(layer, "realPath", ""),
@@ -122,7 +111,7 @@ def _lop_prim_relationships(lop_path: str, prim_path: str):
                 get_targets = getattr(rel, "GetTargets", None)
                 if callable(get_targets):
                     raw_targets = get_targets()
-                    targets = [_usd_path(t) for t in _as_list(raw_targets)]
+                    targets = [_usd_path(t) for t in as_list(raw_targets)]
                 relationships.append({
                     "name": rel.GetName(),
                     "targets": targets,
@@ -291,52 +280,49 @@ def _lop_load_masks(lop_path: str):
 
 
 def register(app):
-    import json
 
     @app.tool("lop_stage_info")
     async def lop_stage_info(lop_path: str) -> list:
         """Get USD stage info: root prim paths and up-axis. Requires USD (pxr)."""
-        return [{"type": "text", "text": json.dumps(_lop_stage_info(lop_path))}]
+        return as_text(_lop_stage_info(lop_path))
 
     @app.tool("lop_prim_list")
     async def lop_prim_list(lop_path: str, prim_path: str = "/") -> list:
         """List children of a USD prim in the stage."""
-        return [{"type": "text", "text": json.dumps(_lop_prim_list(lop_path, prim_path))}]
+        return as_text(_lop_prim_list(lop_path, prim_path))
 
     @app.tool("lop_layer_stack")
     async def lop_layer_stack(lop_path: str) -> list:
         """List USD layers used by a LOP stage. Requires USD (pxr)."""
-        return [{"type": "text", "text": json.dumps(_lop_layer_stack(lop_path))}]
+        return as_text(_lop_layer_stack(lop_path))
 
     @app.tool("lop_prim_relationships")
     async def lop_prim_relationships(lop_path: str, prim_path: str) -> list:
         """List USD relationships and target paths for a prim."""
-        return [{"type": "text", "text": json.dumps(_lop_prim_relationships(lop_path, prim_path))}]
+        return as_text(_lop_prim_relationships(lop_path, prim_path))
 
     @app.tool("lop_material_bindings")
     async def lop_material_bindings(lop_path: str, prim_path: str = "/") -> list:
         """List computed material bindings below a USD prim."""
-        return [{"type": "text", "text": json.dumps(_lop_material_bindings(lop_path, prim_path))}]
+        return as_text(_lop_material_bindings(lop_path, prim_path))
 
     @app.tool("lop_prim_info")
     async def lop_prim_info(lop_path: str, prim_path: str) -> list:
         """Get USD prim type, attributes, and variant sets."""
-        return [{"type": "text", "text": json.dumps(_lop_prim_info(lop_path, prim_path))}]
+        return as_text(_lop_prim_info(lop_path, prim_path))
 
     @app.tool("lop_save_usd")
     async def lop_save_usd(lop_path: str, file_path: str) -> list:
         """Export the USD stage from a LOP node to a .usd/.usda/.usdc file."""
-        return [{"type": "text", "text": json.dumps(_lop_save_usd(lop_path, file_path))}]
+        return as_text(_lop_save_usd(lop_path, file_path))
 
     @app.tool("lop_variant_set")
     async def lop_variant_set(lop_path: str, prim_path: str,
                                varset: str, variant: str) -> list:
         """Set a variant selection on a USD prim."""
-        return [{"type": "text", "text": json.dumps(
-            _lop_variant_set(lop_path, prim_path, varset, variant)
-        )}]
+        return as_text(_lop_variant_set(lop_path, prim_path, varset, variant))
 
     @app.tool("lop_load_masks")
     async def lop_load_masks(lop_path: str) -> list:
         """Get stage load mask configuration from a LOP node."""
-        return [{"type": "text", "text": json.dumps(_lop_load_masks(lop_path))}]
+        return as_text(_lop_load_masks(lop_path))

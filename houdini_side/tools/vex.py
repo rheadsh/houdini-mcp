@@ -1,6 +1,7 @@
 """VEX and VOP network tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text
 
 
 def _vex_run(code: str, context: str = "sop"):
@@ -146,44 +147,41 @@ def _vop_snippet_set(snippet_node_path: str, code: str):
 
 
 def register(app):
-    import json
 
     @app.tool("vex_run")
     async def vex_run(code: str, context: str = "sop") -> list:
         """Execute VEX code via hou.runVex(). context: sop, pop, cop2, etc.
         WARNING: this executes arbitrary VEX in the Houdini session."""
-        return [{"type": "text", "text": json.dumps(_vex_run(code, context))}]
+        return as_text(_vex_run(code, context))
 
     @app.tool("vex_context_list")
     async def vex_context_list() -> list:
         """List all available VEX contexts (sop, pop, cop2, chop, etc.)."""
-        return [{"type": "text", "text": json.dumps(_vex_context_list())}]
+        return as_text(_vex_context_list())
 
     @app.tool("vop_network_list")
     async def vop_network_list(search_path: str = "/") -> list:
         """Find all VOP networks in the scene tree starting from search_path."""
-        return [{"type": "text", "text": json.dumps(_vop_network_list(search_path))}]
+        return as_text(_vop_network_list(search_path))
 
     @app.tool("vop_node_create")
     async def vop_node_create(vop_net_path: str, node_type: str,
                                name: "str | None" = None) -> list:
         """Create a VOP node inside a VOP network."""
-        return [{"type": "text", "text": json.dumps(_vop_node_create(vop_net_path, node_type, name))}]
+        return as_text(_vop_node_create(vop_net_path, node_type, name))
 
     @app.tool("vop_node_connect")
     async def vop_node_connect(from_path: str, from_port: str,
                                 to_path: str, to_port: str) -> list:
         """Connect VOP nodes by named port (e.g. from_port='out', to_port='x')."""
-        return [{"type": "text", "text": json.dumps(
-            _vop_node_connect(from_path, from_port, to_path, to_port)
-        )}]
+        return as_text(_vop_node_connect(from_path, from_port, to_path, to_port))
 
     @app.tool("vop_code_generate")
     async def vop_code_generate(vop_net_path: str) -> list:
         """Retrieve the generated VEX code from a VOP network."""
-        return [{"type": "text", "text": json.dumps(_vop_code_generate(vop_net_path))}]
+        return as_text(_vop_code_generate(vop_net_path))
 
     @app.tool("vop_snippet_set")
     async def vop_snippet_set(snippet_node_path: str, code: str) -> list:
         """Set the VEX snippet code on an Attribute Wrangle, VOP SOP, etc."""
-        return [{"type": "text", "text": json.dumps(_vop_snippet_set(snippet_node_path, code))}]
+        return as_text(_vop_snippet_set(snippet_node_path, code))

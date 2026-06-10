@@ -1,6 +1,51 @@
 """Shared helpers for production-oriented tool implementations."""
+import json
 import os
 from typing import Iterable
+
+
+def as_text(payload) -> list:
+    """Wrap a response dict in the MCP text-content envelope."""
+    return [{"type": "text", "text": json.dumps(payload)}]
+
+
+def to_jsonable(value):
+    """Coerce a hou.* value into something json.dumps accepts.
+
+    Vectors/matrices become lists, unknown objects (hou.Ramp, ...) become
+    their string representation instead of blowing up the MCP envelope.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): to_jsonable(v) for k, v in value.items()}
+    if hasattr(value, "__iter__"):
+        return [to_jsonable(v) for v in value]
+    return str(value)
+
+
+def set_node_parm(node, parm_name: str, value) -> None:
+    """Set a parm or parm tuple on a node, raising if neither exists."""
+    parm = node.parm(parm_name)
+    if parm is None:
+        pt = node.parmTuple(parm_name)
+        if pt is None:
+            raise ValueError(f"Parameter not found: {parm_name!r}")
+        pt.set(value if isinstance(value, (list, tuple)) else [value])
+    else:
+        parm.set(value)
+
+
+def as_list(value) -> list:
+    """Best-effort coercion of API return values to a list."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    try:
+        return list(value)  # type: ignore[arg-type]
+    except TypeError:
+        return [value]
 
 
 def enforce_project_root(real_path: str) -> None:

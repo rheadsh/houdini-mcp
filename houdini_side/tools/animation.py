@@ -1,6 +1,7 @@
 """Animation, time, and channel tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text
 
 
 def _time_get():
@@ -118,44 +119,43 @@ def _keyframe_list(node_path: str, parm_name: str):
 
 
 def register(app):
-    import json
 
     @app.tool("time_get")
     async def time_get() -> list:
         """Get current frame number, time in seconds, and scene FPS."""
-        return [{"type": "text", "text": json.dumps(_time_get())}]
+        return as_text(_time_get())
 
     @app.tool("time_set")
     async def time_set(frame: float) -> list:
         """Jump to a specific frame number."""
-        return [{"type": "text", "text": json.dumps(_time_set(frame))}]
+        return as_text(_time_set(frame))
 
     @app.tool("fps_get")
     async def fps_get() -> list:
         """Get the scene frames-per-second rate."""
-        return [{"type": "text", "text": json.dumps(_fps_get())}]
+        return as_text(_fps_get())
 
     @app.tool("fps_set")
     async def fps_set(fps: float) -> list:
         """Set the scene FPS. Must be positive."""
-        return [{"type": "text", "text": json.dumps(_fps_set(fps))}]
+        return as_text(_fps_set(fps))
 
     @app.tool("frame_range_get")
     async def frame_range_get() -> list:
         """Get the global playbar frame range (start, end)."""
-        return [{"type": "text", "text": json.dumps(_frame_range_get())}]
+        return as_text(_frame_range_get())
 
     @app.tool("frame_range_set")
     async def frame_range_set(start: float, end: float) -> list:
         """Set the global playbar frame range."""
-        return [{"type": "text", "text": json.dumps(_frame_range_set(start, end))}]
+        return as_text(_frame_range_set(start, end))
 
     @app.tool("channel_list")
     async def channel_list(node_path: str) -> list:
         """List all animated parameters (those with keyframes) on a node."""
-        return [{"type": "text", "text": json.dumps(_channel_list(node_path))}]
+        return as_text(_channel_list(node_path))
 
     @app.tool("keyframe_list")
     async def keyframe_list(node_path: str, parm_name: str) -> list:
         """List all keyframes on a parameter with frame, value, expression, slope."""
-        return [{"type": "text", "text": json.dumps(_keyframe_list(node_path, parm_name))}]
+        return as_text(_keyframe_list(node_path, parm_name))

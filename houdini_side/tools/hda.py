@@ -1,7 +1,7 @@
 """Houdini Digital Asset (HDA) management tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import resolve_output_path
+from houdini_side.tools.common import resolve_output_path, as_text
 
 _HDA_SUFFIXES = (".hda", ".hdanc", ".hdalc", ".otl", ".otlnc", ".otllc")
 
@@ -253,52 +253,49 @@ def _hda_section_set(hda_node_type: str, section_name: str, content: str):
 
 
 def register(app):
-    import json
 
     @app.tool("hda_list")
     async def hda_list() -> list:
         """List all installed HDAs with their node type, label, and version."""
-        return [{"type": "text", "text": json.dumps(_hda_list())}]
+        return as_text(_hda_list())
 
     @app.tool("hda_info")
     async def hda_info(hda_node_type: str) -> list:
         """Get HDA definition info: sections, label, version."""
-        return [{"type": "text", "text": json.dumps(_hda_info(hda_node_type))}]
+        return as_text(_hda_info(hda_node_type))
 
     @app.tool("hda_versions")
     async def hda_versions(hda_node_type: "str | None" = None) -> list:
         """List loaded HDA versions, optionally filtered by node type."""
-        return [{"type": "text", "text": json.dumps(_hda_versions(hda_node_type))}]
+        return as_text(_hda_versions(hda_node_type))
 
     @app.tool("hda_install")
     async def hda_install(hda_path: str) -> list:
         """Install an HDA file into the current session."""
-        return [{"type": "text", "text": json.dumps(_hda_install(hda_path))}]
+        return as_text(_hda_install(hda_path))
 
     @app.tool("hda_uninstall")
     async def hda_uninstall(hda_node_type: str) -> list:
         """Uninstall an HDA definition from the current session."""
-        return [{"type": "text", "text": json.dumps(_hda_uninstall(hda_node_type))}]
+        return as_text(_hda_uninstall(hda_node_type))
 
     @app.tool("hda_save")
     async def hda_save(node_path: str, hda_file_path: "str | None" = None) -> list:
         """Save the HDA definition of an HDA instance node to disk."""
-        return [{"type": "text", "text": json.dumps(_hda_save(node_path, hda_file_path))}]
+        return as_text(_hda_save(node_path, hda_file_path))
 
     @app.tool("hda_create")
     async def hda_create(node_paths: list, hda_name: str,
                           hda_label: str, hda_file_path: str) -> list:
         """Convert nodes into a new HDA. node_paths is a list of node paths to wrap."""
-        return [{"type": "text", "text": json.dumps(
-            _hda_create(node_paths, hda_name, hda_label, hda_file_path)
-        )}]
+        return as_text(_hda_create(node_paths, hda_name, hda_label, hda_file_path))
 
     @app.tool("hda_section_get")
     async def hda_section_get(hda_node_type: str, section_name: str) -> list:
         """Get the text content of an HDA section (e.g. 'PythonCook', 'OnLoaded').
         WARNING: Sections like PythonCook, OnLoaded, OnCreated, OnDeleted contain
         Python code that executes when the HDA cooks or is installed."""
-        return [{"type": "text", "text": json.dumps(_hda_section_get(hda_node_type, section_name))}]
+        return as_text(_hda_section_get(hda_node_type, section_name))
 
     @app.tool("hda_section_set")
     async def hda_section_set(hda_node_type: str, section_name: str,
@@ -307,6 +304,4 @@ def register(app):
         WARNING: Writing to PythonCook, OnLoaded, OnCreated, or OnDeleted injects
         Python code that executes whenever the HDA cooks or is installed. Treat this
         with the same caution as arbitrary code execution."""
-        return [{"type": "text", "text": json.dumps(
-            _hda_section_set(hda_node_type, section_name, content)
-        )}]
+        return as_text(_hda_section_set(hda_node_type, section_name, content))

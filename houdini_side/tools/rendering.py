@@ -5,6 +5,7 @@ import uuid
 
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text
 
 # Output parameter names by renderer (tried in priority order)
 _OUTPUT_PARMS = [
@@ -292,52 +293,51 @@ def _rop_frame_range_override(rop_path: str, start: float, end: float):
 
 
 def register(app):
-    import json
 
     @app.tool("rop_list")
     async def rop_list(network_path: str = "/out") -> list:
         """List all ROP nodes in a network (default: /out)."""
-        return [{"type": "text", "text": json.dumps(_rop_list(network_path))}]
+        return as_text(_rop_list(network_path))
 
     @app.tool("rop_render")
     async def rop_render(rop_path: str, frame_range: "list | None" = None,
                           step: float = 1.0, verbose: bool = False) -> list:
         """Execute a ROP render. frame_range: [start, end]. WARNING: This is blocking."""
-        return [{"type": "text", "text": json.dumps(_rop_render(rop_path, frame_range, step, verbose))}]
+        return as_text(_rop_render(rop_path, frame_range, step, verbose))
 
     @app.tool("rop_render_start")
     async def rop_render_start(rop_path: str, frame_range: "list | None" = None,
                                step: float = 1.0, verbose: bool = False) -> list:
         """Start a ROP render with Houdini non-blocking API when available; returns job metadata."""
-        return [{"type": "text", "text": json.dumps(_rop_render_start(rop_path, frame_range, step, verbose))}]
+        return as_text(_rop_render_start(rop_path, frame_range, step, verbose))
 
     @app.tool("rop_render_async")
     async def rop_render_async(rop_path: str, frame_range: "list | None" = None,
                                step: float = 1.0, verbose: bool = False) -> list:
         """Alias for rop_render_start."""
-        return [{"type": "text", "text": json.dumps(_rop_render_start(rop_path, frame_range, step, verbose))}]
+        return as_text(_rop_render_start(rop_path, frame_range, step, verbose))
 
     @app.tool("rop_render_job_status")
     async def rop_render_job_status(job_id: str) -> list:
         """Return local metadata for a render job started by rop_render_start."""
-        return [{"type": "text", "text": json.dumps(_rop_render_job_status(job_id))}]
+        return as_text(_rop_render_job_status(job_id))
 
     @app.tool("rop_render_status")
     async def rop_render_status(rop_path: str) -> list:
         """Check whether a ROP is currently cooking."""
-        return [{"type": "text", "text": json.dumps(_rop_render_status(rop_path))}]
+        return as_text(_rop_render_status(rop_path))
 
     @app.tool("rop_get_output")
     async def rop_get_output(rop_path: str) -> list:
         """Get the output file path from a ROP node (tries common parm names)."""
-        return [{"type": "text", "text": json.dumps(_rop_get_output(rop_path))}]
+        return as_text(_rop_get_output(rop_path))
 
     @app.tool("rop_set_output")
     async def rop_set_output(rop_path: str, output_path: str) -> list:
         """Set the render output path on a ROP node."""
-        return [{"type": "text", "text": json.dumps(_rop_set_output(rop_path, output_path))}]
+        return as_text(_rop_set_output(rop_path, output_path))
 
     @app.tool("rop_frame_range_override")
     async def rop_frame_range_override(rop_path: str, start: float, end: float) -> list:
         """Override the frame range on a ROP node (enables trange and sets f parm)."""
-        return [{"type": "text", "text": json.dumps(_rop_frame_range_override(rop_path, start, end))}]
+        return as_text(_rop_frame_range_override(rop_path, start, end))

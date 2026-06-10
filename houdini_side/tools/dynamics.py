@@ -1,6 +1,7 @@
 """DOP simulation tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text
 
 
 def _dop_sim_enable(dop_net_path: str, on: bool):
@@ -87,29 +88,28 @@ def _dop_data_get(dop_net_path: str, object_name: str, data_name: str):
 
 
 def register(app):
-    import json
 
     @app.tool("dop_sim_enable")
     async def dop_sim_enable(dop_net_path: str, on: bool) -> list:
         """Enable or disable a DOP simulation."""
-        return [{"type": "text", "text": json.dumps(_dop_sim_enable(dop_net_path, on))}]
+        return as_text(_dop_sim_enable(dop_net_path, on))
 
     @app.tool("dop_sim_reset")
     async def dop_sim_reset(dop_net_path: str) -> list:
         """Reset a DOP simulation to frame 1 (presses the resimulate button)."""
-        return [{"type": "text", "text": json.dumps(_dop_sim_reset(dop_net_path))}]
+        return as_text(_dop_sim_reset(dop_net_path))
 
     @app.tool("dop_object_list")
     async def dop_object_list(dop_net_path: str) -> list:
         """List all DOP objects in a simulation network."""
-        return [{"type": "text", "text": json.dumps(_dop_object_list(dop_net_path))}]
+        return as_text(_dop_object_list(dop_net_path))
 
     @app.tool("dop_object_info")
     async def dop_object_info(dop_net_path: str, object_name: str) -> list:
         """Get the DOP data records attached to a simulation object."""
-        return [{"type": "text", "text": json.dumps(_dop_object_info(dop_net_path, object_name))}]
+        return as_text(_dop_object_info(dop_net_path, object_name))
 
     @app.tool("dop_data_get")
     async def dop_data_get(dop_net_path: str, object_name: str, data_name: str) -> list:
         """Get a specific DOP data record from a simulation object."""
-        return [{"type": "text", "text": json.dumps(_dop_data_get(dop_net_path, object_name, data_name))}]
+        return as_text(_dop_data_get(dop_net_path, object_name, data_name))

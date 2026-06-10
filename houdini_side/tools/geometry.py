@@ -1,7 +1,7 @@
 """SOP geometry inspection and export tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import resolve_output_path, validate_read_path
+from houdini_side.tools.common import resolve_output_path, validate_read_path, as_text, to_jsonable
 
 
 _GEO_SUFFIXES = (".bgeo", ".bgeo.sc", ".obj", ".fbx", ".usd", ".usda", ".usdc")
@@ -100,8 +100,7 @@ def _geo_attribute_values(sop_path: str, attrib_name: str, max_count: int = 100)
                 vals = [geo.attribValue(attrib_name)]
             else:
                 vals = []
-            vals = [list(v) if hasattr(v, '__iter__') and not isinstance(v, str)
-                    else v for v in vals]
+            vals = [to_jsonable(v) for v in vals]
             return ok({"attrib": attrib_name, "count": len(vals), "values": vals})
         return dispatch(work, label="geo_attribute_values")
     except Exception as e:
@@ -211,47 +210,44 @@ def _geo_load(parent_path: str, file_path: str):
 
 def register(app):
     """Register all 8 geometry tools."""
-    import json
 
     @app.tool("geo_info")
     async def geo_info(sop_path: str) -> list:
         """Get geometry stats: point/prim/vertex counts and all attribute names."""
-        return [{"type": "text", "text": json.dumps(_geo_info(sop_path))}]
+        return as_text(_geo_info(sop_path))
 
     @app.tool("geo_attributes")
     async def geo_attributes(sop_path: str) -> list:
         """List all attributes with their type, size, and default value."""
-        return [{"type": "text", "text": json.dumps(_geo_attributes(sop_path))}]
+        return as_text(_geo_attributes(sop_path))
 
     @app.tool("geo_attribute_values")
     async def geo_attribute_values(sop_path: str, attrib_name: str,
                                     max_count: int = 100) -> list:
         """Get the first max_count values of a point or prim attribute."""
-        return [{"type": "text", "text": json.dumps(
-            _geo_attribute_values(sop_path, attrib_name, max_count)
-        )}]
+        return as_text(_geo_attribute_values(sop_path, attrib_name, max_count))
 
     @app.tool("geo_groups")
     async def geo_groups(sop_path: str) -> list:
         """List all point/prim/vertex/edge groups with their sizes."""
-        return [{"type": "text", "text": json.dumps(_geo_groups(sop_path))}]
+        return as_text(_geo_groups(sop_path))
 
     @app.tool("geo_points")
     async def geo_points(sop_path: str, max_count: int = 100) -> list:
         """Get point positions as [x, y, z] lists (first max_count points)."""
-        return [{"type": "text", "text": json.dumps(_geo_points(sop_path, max_count))}]
+        return as_text(_geo_points(sop_path, max_count))
 
     @app.tool("geo_bbox")
     async def geo_bbox(sop_path: str) -> list:
         """Get the bounding box: min, max, size, center (all as [x,y,z] lists)."""
-        return [{"type": "text", "text": json.dumps(_geo_bbox(sop_path))}]
+        return as_text(_geo_bbox(sop_path))
 
     @app.tool("geo_save")
     async def geo_save(sop_path: str, file_path: str) -> list:
         """Export geometry to file. Supports .bgeo, .bgeo.sc, .obj, .fbx, .usd."""
-        return [{"type": "text", "text": json.dumps(_geo_save(sop_path, file_path))}]
+        return as_text(_geo_save(sop_path, file_path))
 
     @app.tool("geo_load")
     async def geo_load(parent_path: str, file_path: str) -> list:
         """Create a File SOP inside parent_path that loads geometry from file_path."""
-        return [{"type": "text", "text": json.dumps(_geo_load(parent_path, file_path))}]
+        return as_text(_geo_load(parent_path, file_path))

@@ -1,6 +1,7 @@
 """Object transform tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text
 
 
 def _obj_transform_get(obj_path: str, space: str = "world"):
@@ -101,34 +102,33 @@ def _obj_parent(child_path: str, parent_path: "str | None" = None):
 
 
 def register(app):
-    import json
 
     @app.tool("obj_transform_get")
     async def obj_transform_get(obj_path: str, space: str = "world") -> list:
         """Get a 4x4 transform matrix. space: 'world' (default) or 'local'."""
-        return [{"type": "text", "text": json.dumps(_obj_transform_get(obj_path, space))}]
+        return as_text(_obj_transform_get(obj_path, space))
 
     @app.tool("obj_transform_set")
     async def obj_transform_set(obj_path: str, matrix4x4: list) -> list:
         """Set an object's world transform from a 4x4 matrix (list of 4 rows of 4 floats)."""
-        return [{"type": "text", "text": json.dumps(_obj_transform_set(obj_path, matrix4x4))}]
+        return as_text(_obj_transform_set(obj_path, matrix4x4))
 
     @app.tool("obj_translate")
     async def obj_translate(obj_path: str, tx: float, ty: float, tz: float) -> list:
         """Set object translation parameters tx, ty, tz."""
-        return [{"type": "text", "text": json.dumps(_obj_translate(obj_path, tx, ty, tz))}]
+        return as_text(_obj_translate(obj_path, tx, ty, tz))
 
     @app.tool("obj_rotate")
     async def obj_rotate(obj_path: str, rx: float, ry: float, rz: float) -> list:
         """Set object rotation parameters rx, ry, rz (degrees)."""
-        return [{"type": "text", "text": json.dumps(_obj_rotate(obj_path, rx, ry, rz))}]
+        return as_text(_obj_rotate(obj_path, rx, ry, rz))
 
     @app.tool("obj_scale")
     async def obj_scale(obj_path: str, sx: float, sy: float, sz: float) -> list:
         """Set object uniform or per-axis scale sx, sy, sz."""
-        return [{"type": "text", "text": json.dumps(_obj_scale(obj_path, sx, sy, sz))}]
+        return as_text(_obj_scale(obj_path, sx, sy, sz))
 
     @app.tool("obj_parent")
     async def obj_parent(child_path: str, parent_path: "str | None" = None) -> list:
         """Parent child to parent (input 0). Pass parent_path=null to unparent."""
-        return [{"type": "text", "text": json.dumps(_obj_parent(child_path, parent_path))}]
+        return as_text(_obj_parent(child_path, parent_path))

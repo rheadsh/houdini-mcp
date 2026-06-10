@@ -1,6 +1,7 @@
 """Take management tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
+from houdini_side.tools.common import as_text
 
 
 def _take_list():
@@ -81,24 +82,23 @@ def _take_parm_include(node_path: str, parm_name: str):
 
 
 def register(app):
-    import json
 
     @app.tool("take_list")
     async def take_list() -> list:
         """List all takes in the scene as a tree structure."""
-        return [{"type": "text", "text": json.dumps(_take_list())}]
+        return as_text(_take_list())
 
     @app.tool("take_create")
     async def take_create(name: str, parent_name: "str | None" = None) -> list:
         """Create a new take as a child of parent_name (or root if omitted)."""
-        return [{"type": "text", "text": json.dumps(_take_create(name, parent_name))}]
+        return as_text(_take_create(name, parent_name))
 
     @app.tool("take_set_current")
     async def take_set_current(name: str) -> list:
         """Set the active take by name."""
-        return [{"type": "text", "text": json.dumps(_take_set_current(name))}]
+        return as_text(_take_set_current(name))
 
     @app.tool("take_parm_include")
     async def take_parm_include(node_path: str, parm_name: str) -> list:
         """Include a parameter in the current take."""
-        return [{"type": "text", "text": json.dumps(_take_parm_include(node_path, parm_name))}]
+        return as_text(_take_parm_include(node_path, parm_name))

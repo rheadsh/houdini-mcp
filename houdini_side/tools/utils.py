@@ -5,7 +5,7 @@ import platform
 import tempfile
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import resolve_output_path
+from houdini_side.tools.common import resolve_output_path, as_text
 
 _IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".exr", ".tif", ".tiff")
 
@@ -211,78 +211,77 @@ def _houdini_env_diagnostics():
 
 
 def register(app):
-    import json
 
     @app.tool("run_hscript")
     async def run_hscript(command: str) -> list:
         """Execute an hscript command. Returns stdout and stderr.
         WARNING: HScript can run arbitrary shell commands (e.g. via 'unix').
         Treat this with the same caution as arbitrary code execution."""
-        return [{"type": "text", "text": json.dumps(_run_hscript(command))}]
+        return as_text(_run_hscript(command))
 
     @app.tool("eval_expression")
     async def eval_expression(expr: str) -> list:
         """Evaluate an hscript expression (e.g. '$HIP', '$F', 'strlen(\"hello\")').
         WARNING: Expressions can run arbitrary shell commands via system().
         Treat this with the same caution as arbitrary code execution."""
-        return [{"type": "text", "text": json.dumps(_eval_expression(expr))}]
+        return as_text(_eval_expression(expr))
 
     @app.tool("expand_string")
     async def expand_string(template: str) -> list:
         """Expand $VARIABLES and `hscript expressions` in a string."""
-        return [{"type": "text", "text": json.dumps(_expand_string(template))}]
+        return as_text(_expand_string(template))
 
     @app.tool("find_file")
     async def find_file(filename: str) -> list:
         """Find a file by name in $HOUDINI_PATH. Returns the full path or null."""
-        return [{"type": "text", "text": json.dumps(_find_file(filename))}]
+        return as_text(_find_file(filename))
 
     @app.tool("path_list")
     async def path_list() -> list:
         """List all directories in $HOUDINI_PATH."""
-        return [{"type": "text", "text": json.dumps(_path_list())}]
+        return as_text(_path_list())
 
     @app.tool("env_get")
     async def env_get(var_name: str) -> list:
         """Get the value of a Houdini environment variable."""
-        return [{"type": "text", "text": json.dumps(_env_get(var_name))}]
+        return as_text(_env_get(var_name))
 
     @app.tool("env_set")
     async def env_set(var_name: str, value: str) -> list:
         """Set a Houdini session environment variable."""
-        return [{"type": "text", "text": json.dumps(_env_set(var_name, value))}]
+        return as_text(_env_set(var_name, value))
 
     @app.tool("file_references")
     async def file_references() -> list:
         """List all external file references in the current scene."""
-        return [{"type": "text", "text": json.dumps(_file_references())}]
+        return as_text(_file_references())
 
     @app.tool("undo")
     async def undo() -> list:
         """Undo the last undoable action in Houdini."""
-        return [{"type": "text", "text": json.dumps(_undo())}]
+        return as_text(_undo())
 
     @app.tool("redo")
     async def redo() -> list:
         """Redo the last undone action."""
-        return [{"type": "text", "text": json.dumps(_redo())}]
+        return as_text(_redo())
 
     @app.tool("update_mode_set")
     async def update_mode_set(mode: str) -> list:
         """Set the scene update mode. mode: 'auto', 'manual', or 'on_request'."""
-        return [{"type": "text", "text": json.dumps(_update_mode_set(mode))}]
+        return as_text(_update_mode_set(mode))
 
     @app.tool("viewport_screenshot")
     async def viewport_screenshot(file_path: "str | None" = None) -> list:
         """Capture the active viewport to a PNG file. Requires Houdini UI."""
-        return [{"type": "text", "text": json.dumps(_viewport_screenshot(file_path))}]
+        return as_text(_viewport_screenshot(file_path))
 
     @app.tool("node_bundle_list")
     async def node_bundle_list() -> list:
         """List all node bundles with their names and node counts."""
-        return [{"type": "text", "text": json.dumps(_node_bundle_list())}]
+        return as_text(_node_bundle_list())
 
     @app.tool("houdini_env_diagnostics")
     async def houdini_env_diagnostics() -> list:
         """Return Houdini/Python/environment diagnostics for studio support."""
-        return [{"type": "text", "text": json.dumps(_houdini_env_diagnostics())}]
+        return as_text(_houdini_env_diagnostics())
