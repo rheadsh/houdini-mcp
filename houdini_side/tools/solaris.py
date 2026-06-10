@@ -145,13 +145,11 @@ def _lop_material_bindings(lop_path: str, prim_path: str = "/"):
             root = stage.GetPrimAtPath(prim_path)
             if not root.IsValid():
                 raise ValueError(f"USD prim not found: {prim_path!r}")
-            material_binding_api = getattr(Usd, "Shade", None) if Usd is not None else None
-            if material_binding_api is None:
-                try:
-                    from pxr import UsdShade  # type: ignore[import-untyped]
-                    material_binding_api = UsdShade
-                except Exception:
-                    material_binding_api = None
+            try:
+                from pxr import UsdShade  # type: ignore[import-untyped]
+                material_binding_api = UsdShade
+            except Exception:
+                material_binding_api = None
             if material_binding_api is None or not hasattr(material_binding_api, "MaterialBindingAPI"):
                 return ok({
                     "prim_path": prim_path,

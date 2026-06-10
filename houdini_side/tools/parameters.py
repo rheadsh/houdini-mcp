@@ -27,7 +27,7 @@ def _parm_get(node_path: str, parm_name: str):
                     raise ValueError(f"Parameter not found: {parm_name!r} on {node_path!r}")
                 return ok({"name": parm_name, "value": list(pt.eval())})
             return ok({"name": parm_name, "value": parm.eval()})
-        return dispatch(work)
+        return dispatch(work, label="parm_get")
     except Exception as e:
         return err(e)
 
@@ -41,7 +41,7 @@ def _parm_set(node_path: str, parm_name: str, value):
                     raise ValueError(f"Node not found: {node_path!r}")
                 _set_node_parm(node, parm_name, value)
             return ok({"node": node_path, "parm": parm_name, "value": value})
-        return dispatch(work)
+        return dispatch(work, label="parm_set")
     except Exception as e:
         return err(e)
 
@@ -86,7 +86,7 @@ def _parm_set_expression(node_path: str, parm_name: str,
                 parm.setExpression(expr, lang)
             return ok({"node": node_path, "parm": parm_name, "expression": expr,
                        "language": language})
-        return dispatch(work)
+        return dispatch(work, label="parm_set_expression")
     except Exception as e:
         return err(e)
 
@@ -104,7 +104,7 @@ def _parm_get_all(node_path: str):
                 except Exception:
                     params[p.name()] = None
             return ok({"node": node_path, "parameters": params})
-        return dispatch(work)
+        return dispatch(work, label="parm_get_all")
     except Exception as e:
         return err(e)
 
@@ -121,7 +121,7 @@ def _parm_revert(node_path: str, parm_name: str):
                     raise ValueError(f"Parameter not found: {parm_name!r}")
                 parm.revertToDefaults()
             return ok({"reverted": parm_name})
-        return dispatch(work)
+        return dispatch(work, label="parm_revert")
     except Exception as e:
         return err(e)
 
@@ -138,7 +138,7 @@ def _parm_lock(node_path: str, parm_name: str, on: bool):
                     raise ValueError(f"Parameter not found: {parm_name!r}")
                 parm.lock(on)
             return ok({"parm": parm_name, "locked": on})
-        return dispatch(work)
+        return dispatch(work, label="parm_lock")
     except Exception as e:
         return err(e)
 
@@ -161,7 +161,7 @@ def _parm_keyframe_set(node_path: str, parm_name: str,
                 parm.setKeyframe(kf)
                 return ok({"parm": parm_name, "frame": kf.frame(),
                            "value": kf.value()})
-        return dispatch(work)
+        return dispatch(work, label="parm_keyframe_set")
     except Exception as e:
         return err(e)
 
@@ -178,7 +178,7 @@ def _parm_keyframe_delete(node_path: str, parm_name: str, frame: float):
                     raise ValueError(f"Parameter not found: {parm_name!r}")
                 parm.deleteKeyframeAtFrame(frame)
             return ok({"parm": parm_name, "deleted_frame": frame})
-        return dispatch(work)
+        return dispatch(work, label="parm_keyframe_delete")
     except Exception as e:
         return err(e)
 
@@ -205,7 +205,7 @@ def _parm_keyframes_list(node_path: str, parm_name: str):
                     pass
                 kfs.append(entry)
             return ok({"parm": parm_name, "keyframes": kfs})
-        return dispatch(work)
+        return dispatch(work, label="parm_keyframes_list")
     except Exception as e:
         return err(e)
 
@@ -224,7 +224,7 @@ def _parm_link(src_node: str, src_parm: str,
                 expr = f'ch("{src_node}/{src_parm}")'
                 p.setExpression(expr, hou.exprLanguage.Hscript)
             return ok({"linked": f"{dst_node}/{dst_parm} -> {src_node}/{src_parm}"})
-        return dispatch(work)
+        return dispatch(work, label="parm_link")
     except Exception as e:
         return err(e)
 
