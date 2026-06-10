@@ -215,12 +215,16 @@ def register(app):
 
     @app.tool("run_hscript")
     async def run_hscript(command: str) -> list:
-        """Execute an hscript command. Returns stdout and stderr."""
+        """Execute an hscript command. Returns stdout and stderr.
+        WARNING: HScript can run arbitrary shell commands (e.g. via 'unix').
+        Treat this with the same caution as arbitrary code execution."""
         return [{"type": "text", "text": json.dumps(_run_hscript(command))}]
 
     @app.tool("eval_expression")
     async def eval_expression(expr: str) -> list:
-        """Evaluate an hscript expression (e.g. '$HIP', '$F', 'strlen(\"hello\")')."""
+        """Evaluate an hscript expression (e.g. '$HIP', '$F', 'strlen(\"hello\")').
+        WARNING: Expressions can run arbitrary shell commands via system().
+        Treat this with the same caution as arbitrary code execution."""
         return [{"type": "text", "text": json.dumps(_eval_expression(expr))}]
 
     @app.tool("expand_string")

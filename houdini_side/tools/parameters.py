@@ -251,7 +251,10 @@ def register(app):
     @app.tool("parm_set_expression")
     async def parm_set_expression(node_path: str, parm_name: str,
                                    expr: str, language: str = "python") -> list:
-        """Set a channel expression. language: 'python' (default) or 'hscript'."""
+        """Set a channel expression. language: 'python' (default) or 'hscript'.
+        WARNING: a Python expression executes arbitrary Python in Houdini every
+        time the parameter evaluates; hscript expressions can run shell commands
+        via system(). Treat with the same caution as arbitrary code execution."""
         return [{"type": "text", "text": json.dumps(
             _parm_set_expression(node_path, parm_name, expr, language)
         )}]

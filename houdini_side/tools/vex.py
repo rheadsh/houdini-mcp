@@ -150,7 +150,8 @@ def register(app):
 
     @app.tool("vex_run")
     async def vex_run(code: str, context: str = "sop") -> list:
-        """Execute VEX code via hou.runVex(). context: sop, pop, cop2, etc."""
+        """Execute VEX code via hou.runVex(). context: sop, pop, cop2, etc.
+        WARNING: this executes arbitrary VEX in the Houdini session."""
         return [{"type": "text", "text": json.dumps(_vex_run(code, context))}]
 
     @app.tool("vex_context_list")
