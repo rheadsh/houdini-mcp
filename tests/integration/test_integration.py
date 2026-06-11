@@ -2,32 +2,33 @@
 Integration tests requiring a real Houdini installation.
 
 Run with:
-    hython -m pytest tests/test_integration.py -v
+    hython -m pytest tests/integration -v
 
 These tests are automatically skipped when run under standard Python.
 They verify that the tool implementations work against the real hou.* API,
 not just the mock.
 """
-import sys
+from typing import Any, cast
+
 import pytest
 
-# Skip the entire module when not running under hython
-pytestmark = pytest.mark.skipif(
-    "hython" not in sys.executable and not sys.executable.endswith("python"),
-    reason="Integration tests require hython (Houdini Python)"
-)
-
-# Guard: if hou is not importable at all, skip everything
+# The real hou module is only importable inside Houdini/hython.
 try:
-    import hou
+    import hou as _hou
     _HOU_AVAILABLE = True
 except ImportError:
+    _hou = None
     _HOU_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(
-    not _HOU_AVAILABLE,
-    reason="hou module not available — run with hython"
-)
+hou = cast(Any, _hou)
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _HOU_AVAILABLE,
+        reason="hou module not available — run with hython"
+    ),
+]
 
 
 @pytest.fixture(autouse=True)

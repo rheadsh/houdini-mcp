@@ -1,8 +1,3 @@
-import types, pytest
-
-
-# --- Utils tests ---
-
 def test_run_hscript_returns_output(mock_hou):
     mock_hou.hscript = lambda cmd: ("hello world\n", "")
     from houdini_side.tools.utils import _run_hscript
@@ -67,15 +62,3 @@ def test_houdini_env_diagnostics(mock_hou):
     assert result["success"] is True
     assert result["data"]["houdini"]["version"] == "20.5.000"
     assert result["data"]["env"]["HOUDINI_MCP_PORT"] == "9876"
-
-
-# --- HDA tests ---
-
-def test_hda_list_returns_empty_when_unavailable(mock_hou):
-    # Remove hda attr to simulate unavailability
-    if hasattr(mock_hou, 'hda'):
-        delattr(mock_hou, 'hda')
-    from houdini_side.tools.hda import _hda_list
-    result = _hda_list()
-    assert result["success"] is True
-    assert result["data"]["hdas"] == []

@@ -56,3 +56,13 @@ def test_hda_versions_falls_back_to_hda_definition(mock_hou):
     assert result["data"]["count"] == 1
     assert result["data"]["versions"][0]["file"] == "/tmp/fallback.hda"
 
+
+def test_hda_list_returns_empty_when_unavailable(mock_hou):
+    # Remove hda attr to simulate unavailability
+    if hasattr(mock_hou, 'hda'):
+        delattr(mock_hou, 'hda')
+    from houdini_side.tools.hda import _hda_list
+    result = _hda_list()
+    assert result["success"] is True
+    assert result["data"]["hdas"] == []
+
