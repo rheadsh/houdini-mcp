@@ -4,7 +4,8 @@ MCP server for Houdini — gives Claude direct access to an active Houdini sessi
 123 tools across 14 categories: nodes, geometry, parameters, animation, rendering,
 HDAs, DOPs, Solaris/USD, PDG, VEX/VOPs, takes, and utilities.
 
-Requires Houdini 20.0+ with an active session (not headless).
+Requires Houdini 20.0+ with an active session (not headless). Python 3.10+
+(already bundled with Houdini 20.0+ — no separate install needed).
 
 ## Install
 
@@ -55,6 +56,22 @@ powershell -ExecutionPolicy Bypass -File install\setup.ps1
 > **Tip:** `HOUDINI_USER_PREF_DIR` is typically  
 > `C:\Users\<user>\Documents\houdini20.5` (adjust for your Houdini version).
 
+### Manual install
+
+If you prefer not to run the setup scripts:
+
+1. Install the runtime dependencies into Houdini's Python:
+   `hython -m pip install -r requirements.txt`
+2. Copy `install/houdini_mcp.json` (or `install/houdini_mcp_windows.json` on
+   Windows) into `$HOUDINI_USER_PREF_DIR/packages/` and edit the
+   `HOUDINI_MCP_ROOT` value so it points to this repository.
+
+### Uninstall
+
+Delete `$HOUDINI_USER_PREF_DIR/packages/houdini_mcp.json` and restart Houdini.
+Optionally remove the installed Python packages with
+`hython -m pip uninstall mcp starlette uvicorn`.
+
 ## Security and production warnings
 
 This project is intended to run as a local development tool inside an active
@@ -77,8 +94,10 @@ Important limitations:
   users and processes can access `localhost`.
 - Some tools can overwrite files, modify HDAs, inject executable HDA section
   code, or change scene state.
-- `HOUDINI_MCP_PROJECT_ROOT` currently restricts hip-file operations, but not
-  every file-related tool is sandboxed.
+- `HOUDINI_MCP_PROJECT_ROOT` restricts hip-file operations and the file
+  export/load tools (`geo_save`, `geo_load`, `lop_save_usd`, `hda_save`,
+  `hda_create`, `viewport_screenshot`), but paths set as plain parameters
+  (e.g. `rop_set_output`, `parm_set`) are not sandboxed.
 - `run_hscript`, `eval_expression`, `parm_set_expression`, `hda_section_set`,
   `hda_install`, render, PDG, and file export tools should be considered
   high-trust operations.
@@ -130,27 +149,59 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
+## Configure Claude Code
+
+This repo ships a `.mcp.json` with the same configuration, so running
+`claude` from the repo root picks up the server automatically. From any other
+directory:
+
+```bash
+claude mcp add --transport http houdini http://localhost:9876/mcp
+```
+
 ## Optional: restrict file access
 
-Set `HOUDINI_MCP_PROJECT_ROOT` to limit hip file operations to a directory:
+Set `HOUDINI_MCP_PROJECT_ROOT` to limit file operations to a directory:
 
 ```bash
 export HOUDINI_MCP_PROJECT_ROOT=/projects/myshow
 ```
 
-This is a partial safeguard. It applies to hip-file operations such as
-`hip_load`, `hip_save`, and `hip_merge`; it is not a complete sandbox for every
-tool that reads or writes files.
+This applies to hip-file operations (`hip_load`, `hip_save`, `hip_merge`) and
+to the file export/load tools (`geo_save`, `geo_load`, `lop_save_usd`,
+`hda_save`, `hda_create`, `viewport_screenshot`). It is not a complete sandbox:
+paths written into plain parameters (e.g. `rop_set_output`) are not validated.
 
 ## Test
 
 ```bash
-# Unit tests (no Houdini needed)
-python -m pytest tests/ --ignore=tests/test_integration.py -v
+# Unit tests (no Houdini needed; integration tests auto-skip)
+python -m pytest
 
-# Integration tests (requires hython)
-hython -m pytest tests/test_integration.py -v
+# Integration tests (require hython with a Houdini license)
+hython -m pytest tests/integration -v
 ```
+
+## Troubleshooting
+
+- **Shelf tab not visible** — restart Houdini after install, then add the
+  shelf set: right-click a shelf tab area → *Shelves* → enable *Houdini MCP*.
+  Verify the package loaded with `hou.ui.curDesktop()` or check
+  `$HOUDINI_USER_PREF_DIR/packages/houdini_mcp.json` points to the repo.
+- **`[houdini-mcp] MCP server already running`** — the server is a singleton
+  per session; use *Stop MCP Server* first if you need to restart it.
+- **Port already in use** — another process owns `9876`. Set
+  `HOUDINI_MCP_PORT` in the package file (or before launching Houdini) and
+  update your MCP client URL to match.
+- **Client cannot connect** — confirm the server is up:
+  `curl -i http://localhost:9876/mcp` should answer (an HTTP error code is
+  fine; *connection refused* means the server is not running).
+- **`pip install` fails inside hython** — some studio installs protect the
+  Houdini Python directory. Re-run with elevated permissions or use
+  `hython -m pip install --user -r requirements.txt`.
+- **Tool calls time out** — long cooks/renders exceed the 30 s default
+  dispatch timeout. Raise it per tool, e.g.
+  `HOUDINI_MCP_TIMEOUT_ROP_RENDER=600`, or use the async PDG/render tools.
 
 ## Tool categories (123 total)
 
@@ -372,7 +423,7 @@ Requires Houdini with USD support (`pxr` module). All tools return a clear error
 | `undo` | — | Undo the last undoable action |
 | `redo` | — | Redo the last undone action |
 | `update_mode_set` | `mode: str` | Set scene update mode: `'auto'` \| `'manual'` \| `'on_request'` |
-| `viewport_screenshot` | `file_path?: str` | Capture the active viewport to a PNG file (default: `/tmp/mcp_screenshot.png`). Requires Houdini UI |
+| `viewport_screenshot` | `file_path?: str` | Capture the active viewport to an image file (default: `mcp_screenshot.png` in the system temp dir). Requires Houdini UI |
 | `node_bundle_list` | — | List all node bundles with their names and node counts |
 | `houdini_env_diagnostics` | — | Return Houdini, Python, path, and MCP environment diagnostics for support |
 
