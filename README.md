@@ -159,6 +159,54 @@ directory:
 claude mcp add --transport http houdini http://localhost:9876/mcp
 ```
 
+## Complementing with Audiovisual Production Skills
+
+While this MCP server provides the direct tools to inspect and control a Houdini session (creating nodes, setting parameters, cooking graphs), you can complement it with modular system-prompt skills to help the AI assistant write high-quality VEX wrangles and Python scripts.
+
+The [audiovisual-production-skills](https://github.com/rheadsh/audiovisual-production-skills) repository provides two Houdini-specific skills:
+- **`hou-vex`**: Complete VEX programming reference with 40+ production-ready snippets, wrangle contexts (Point, Prim, Detail, Vertex), optimization guidelines, and troubleshooting procedures.
+- **`hou-python`**: Python (HOM) scripting reference with modeling/animation recipes, Python SOP templates, render automation, and best practices.
+
+### Installation
+
+Clone the repository and copy the Houdini skills to the skills directory of your AI coding assistant:
+
+#### Claude Code
+```bash
+# Add to your current project workspace
+cp -r hou-vex hou-python /path/to/your/project/.claude/skills/
+
+# Or install globally for all sessions
+cp -r hou-vex hou-python ~/.claude/skills/
+```
+
+#### Antigravity
+```bash
+# Workspace
+cp -r hou-vex hou-python /path/to/your/project/.agent/skills/
+
+# Global
+cp -r hou-vex hou-python ~/.gemini/antigravity/skills/
+```
+
+#### Codex
+```bash
+# Workspace
+cp -r hou-vex hou-python /path/to/your/project/.agents/skills/
+
+# Global
+cp -r hou-vex hou-python ~/.agents/skills/
+```
+
+#### GitHub Copilot
+```bash
+# Workspace
+cp -r hou-vex hou-python /path/to/your/project/.github/skills/
+
+# Global
+cp -r hou-vex hou-python ~/.copilot/skills/
+```
+
 ## Optional: restrict file access
 
 Set `HOUDINI_MCP_PROJECT_ROOT` to limit file operations to a directory:
