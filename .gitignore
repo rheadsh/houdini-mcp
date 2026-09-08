@@ -1,16 +1,62 @@
-# Python
-*.pyc
+# Python bytecode and caches
 __pycache__/
+*.py[cod]
+*$py.class
 .pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# Virtual environments and local environment variables
 .venv/
 venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
 
-# OS
-.DS_Store
+# Packaging and build output
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
 
-# Local tooling/config
+# Test and coverage output
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# Editors and local tooling
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
 .claude/settings.local.json
 
+# Logs and runtime files
+*.log
+*.pid
+
+# Houdini backups and crash recovery files
+*.hip~
+*.hipnc~
+*.hiplc~
+*.autosave
+
+# Operating systems
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
 # Internal design docs and local test sandbox (not published)
-docs/*
+docs/
 mcp-testing/
