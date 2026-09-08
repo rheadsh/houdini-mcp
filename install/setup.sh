@@ -39,8 +39,18 @@ fi
 echo "Using hython: $HYTHON_BIN"
 echo "Repo root: $REPO_ROOT"
 
-# No --upgrade: avoid replacing packages bundled with Houdini's Python.
-"$HYTHON_BIN" -m pip install -r "$REPO_ROOT/requirements.txt"
+PYTHON_TAG="$("$HYTHON_BIN" -c 'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")')"
+DEPS_DIR="$REPO_ROOT/.deps/$PYTHON_TAG"
+mkdir -p "$DEPS_DIR"
+
+# Keep MCP dependencies outside Houdini's bundled site-packages. This is
+# especially important for H22/Python 3.13, whose bundled libraries differ
+# substantially from H21/Python 3.11.
+"$HYTHON_BIN" -m pip install --upgrade --target "$DEPS_DIR" \
+    -r "$REPO_ROOT/requirements.txt"
+
+PYTHONPATH="$DEPS_DIR${PYTHONPATH:+:$PYTHONPATH}" "$HYTHON_BIN" -c \
+    'import hou, mcp, starlette, uvicorn; print("Dependency check passed")'
 
 PREF_DIR="$("$HYTHON_BIN" -c 'import hou; print(hou.getenv("HOUDINI_USER_PREF_DIR") or "")')"
 if [ -z "$PREF_DIR" ]; then
@@ -63,10 +73,13 @@ cat > "$PACKAGE_FILE" <<EOF
         { "HOUDINI_MCP_PORT": { "value": "9876" } },
         { "HOUDINI_MCP_DISPATCH_TIMEOUT": { "value": "30" } },
         { "HOUDINI_MCP_ROOT": { "value": "$REPO_ROOT" } },
-        { "PYTHONPATH": { "value": "$REPO_ROOT", "method": "prepend" } }
+        { "HOUDINI_MCP_DEPS": { "value": "$DEPS_DIR" } },
+        { "PYTHONPATH": { "value": "$REPO_ROOT", "method": "prepend" } },
+        { "PYTHONPATH": { "value": "$DEPS_DIR", "method": "prepend" } }
     ]
 }
 EOF
 
 echo "Installed Houdini package: $PACKAGE_FILE"
+echo "Installed Python dependencies: $DEPS_DIR"
 echo "Done. Restart Houdini, then use Shelf -> Houdini MCP -> Start MCP Server."

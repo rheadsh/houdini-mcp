@@ -1,18 +1,20 @@
 # houdini-mcp
 
-MCP server for Houdini — gives Claude direct access to an active Houdini session.
+MCP server for Houdini — gives Codex, Claude, and other MCP clients direct
+access to an active Houdini session.
 123 tools across 14 categories: nodes, geometry, parameters, animation, rendering,
 HDAs, DOPs, Solaris/USD, PDG, VEX/VOPs, takes, and utilities.
 
-Requires Houdini 20.0+ with an active session (not headless). Python 3.10+
-(already bundled with Houdini 20.0+ — no separate install needed).
+Requires Houdini 20.0+ with an active session (not headless). The supported
+targets include Houdini 21 with Python 3.11 and Houdini 22 with its default
+Python 3.13 or optional Python 3.11 build.
 
 ## Install
 
 ### macOS / Linux
 
 ```bash
-# Run from the repo root. Installs runtime deps into hython and writes
+# Run from the repo root. Installs runtime deps into .deps/pythonX.Y and writes
 # $HOUDINI_USER_PREF_DIR/packages/houdini_mcp.json with this repo path.
 bash install/setup.sh
 ```
@@ -40,6 +42,14 @@ REM — or — PowerShell
 powershell -ExecutionPolicy Bypass -File install\setup.ps1
 ```
 
+If Houdini's graphical application uses a different preferences directory
+than `hython`, pass it explicitly:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install\setup.ps1 `
+  -HoudiniUserPrefDir "$HOME\Documents\houdini22.0"
+```
+
 The Windows installer installs runtime dependencies and writes:
 
 ```powershell
@@ -60,17 +70,31 @@ powershell -ExecutionPolicy Bypass -File install\setup.ps1
 
 If you prefer not to run the setup scripts:
 
-1. Install the runtime dependencies into Houdini's Python:
-   `hython -m pip install -r requirements.txt`
+1. Install the runtime dependencies into `.deps/python3.11` for Houdini 21,
+   or `.deps/python3.13` for the default Houdini 22 build. Use that version's
+   `hython`, for example:
+   `hython -m pip install --upgrade --target .deps/python3.13 -r requirements.txt`
 2. Copy `install/houdini_mcp.json` (or `install/houdini_mcp_windows.json` on
    Windows) into `$HOUDINI_USER_PREF_DIR/packages/` and edit the
-   `HOUDINI_MCP_ROOT` value so it points to this repository.
+   `HOUDINI_MCP_ROOT` value so it points to this repository. The templates
+   select the matching dependency directory using `houdini_python`.
+
+### Houdini 21/22 compatibility
+
+- Dependencies are isolated by Python version so installing the MCP does not
+  modify packages bundled by SideFX.
+- Parameter writes explicitly preserve channel-reference behavior required by
+  Houdini 22.
+- PDG tools prefer the current `cookWorkItems`, `dirtyAllWorkItems`,
+  `getCookState`, `pdg.Node.workItems`, and `pdg.WorkItem.outputFiles` APIs,
+  with fallbacks for older Houdini versions.
+- Viewport captures use the supported Scene Viewer flipbook API.
 
 ### Uninstall
 
 Delete `$HOUDINI_USER_PREF_DIR/packages/houdini_mcp.json` and restart Houdini.
-Optionally remove the installed Python packages with
-`hython -m pip uninstall mcp starlette uvicorn`.
+Optionally delete the matching `.deps/python3.11` or `.deps/python3.13`
+directory from this repository.
 
 ## Security and production warnings
 
@@ -133,6 +157,7 @@ Useful package/env settings:
 | `HOUDINI_MCP_DISPATCH_TIMEOUT` | `30` | Default main-thread dispatch timeout in seconds |
 | `HOUDINI_MCP_TIMEOUT_<TOOL>` | — | Per-tool timeout override, e.g. `HOUDINI_MCP_TIMEOUT_ROP_RENDER_START=300` |
 | `HOUDINI_MCP_PROJECT_ROOT` | — | Optional hip-file sandbox root |
+| `HOUDINI_MCP_DEPS` | Auto-detected | Version-specific isolated Python dependencies |
 
 ## Configure Claude Desktop
 
@@ -157,6 +182,37 @@ directory:
 
 ```bash
 claude mcp add --transport http houdini http://localhost:9876/mcp
+```
+
+## Configure Codex
+
+First, start the server in Houdini: **Shelf → Houdini MCP → Start MCP Server**.
+Then register it in Codex:
+
+```bash
+codex mcp add houdini --url http://localhost:9876/mcp
+```
+
+Check that Codex can see the server:
+
+```bash
+codex mcp list
+```
+
+Start Codex and try a simple request:
+
+```bash
+codex
+```
+
+```text
+Use the Houdini MCP server and show me the current Houdini version.
+```
+
+To remove the server later:
+
+```bash
+codex mcp remove houdini
 ```
 
 ## Complementing with Audiovisual Production Skills

@@ -157,7 +157,13 @@ def _viewport_screenshot(file_path: "str | None" = None):
                 tempfile.gettempdir(), "mcp_screenshot.png"
             )
             out_path = resolve_output_path(hou, raw_path, _IMAGE_SUFFIXES)
-            viewer.curViewport().saveViewToFile(out_path)
+            viewport = viewer.curViewport()
+            settings = viewer.flipbookSettings().stash()
+            frame = hou.frame()
+            settings.frameRange((frame, frame))
+            settings.outputToMPlay(False)
+            settings.output(out_path)
+            viewer.flipbook(viewport, settings)
             return ok({"saved_to": out_path})
         return dispatch(work, label="viewport_screenshot")
     except Exception as e:
@@ -182,6 +188,7 @@ def _houdini_env_diagnostics():
         def work():
             env_names = [
                 "HOUDINI_MCP_ROOT",
+                "HOUDINI_MCP_DEPS",
                 "HOUDINI_MCP_PORT",
                 "HOUDINI_MCP_PROJECT_ROOT",
                 "HOUDINI_MCP_DISPATCH_TIMEOUT",

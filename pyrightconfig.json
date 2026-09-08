@@ -1,6 +1,6 @@
 {
     "extraPaths": ["."],
-    "exclude": ["tests/"],
+    "exclude": ["tests/", ".venv/", ".deps/", "build/", "dist/"],
     "reportMissingModuleSource": false,
     "reportMissingImports": false,
     "reportUnusedImport": false

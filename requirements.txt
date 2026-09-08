@@ -1,6 +1,6 @@
-# Installed into Houdini's bundled Python (hython) by install/setup.*.
-# Upper bounds are deliberate: an unbounded upgrade could replace packages
-# that Houdini ships with (anyio, pydantic, ...) and break the installation.
+# Installed into a versioned .deps directory using Houdini's Python.
+# Upper bounds limit API drift while the isolated target prevents modifying
+# packages bundled by SideFX.
 mcp>=1.0.0,<2
 starlette>=0.37.2,<1
 uvicorn>=0.30.0,<1

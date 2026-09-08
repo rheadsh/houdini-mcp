@@ -100,3 +100,48 @@ def test_pdg_workitems_can_target_child_node(mock_hou):
     assert result["success"] is True
     assert result["data"]["node"] == "ropfetch1"
     assert result["data"]["count"] == 1
+
+
+def test_pdg_uses_houdini_21_22_cook_api(mock_hou):
+    calls = []
+    top = types.SimpleNamespace(cookWorkItems=lambda **kwargs: calls.append(kwargs))
+    mock_hou.node = lambda p: top
+
+    from houdini_side.tools.pdg import _pdg_cook
+
+    result = _pdg_cook("/tasks/topnet1")
+    assert result["success"] is True
+    assert calls == [{"block": False}]
+
+
+def test_pdg_uses_houdini_21_22_dirty_and_status_apis(mock_hou):
+    dirty_calls = []
+    top = types.SimpleNamespace(
+        dirtyAllWorkItems=lambda **kwargs: dirty_calls.append(kwargs),
+        getCookState=lambda force: "Cooking" if not force else "Forced",
+    )
+    mock_hou.node = lambda p: top
+
+    from houdini_side.tools.pdg import _pdg_dirty, _pdg_status
+
+    assert _pdg_dirty("/tasks/topnet1")["success"] is True
+    assert dirty_calls == [{"remove_outputs": False}]
+    assert _pdg_status("/tasks/topnet1")["data"]["state"] == "Cooking"
+
+
+def test_pdg_reads_modern_pdg_node_properties_and_outputs(mock_hou):
+    output = types.SimpleNamespace(path="/tmp/result.bgeo.sc")
+    item = types.SimpleNamespace(
+        id=1, index=0, name="item0", state="Cooked",
+        isFailed=False, outputFiles=[output], node="processor1",
+    )
+    pdg_node = types.SimpleNamespace(workItems=[item])
+    top = types.SimpleNamespace(getPDGNode=lambda: pdg_node)
+    mock_hou.node = lambda p: top
+
+    from houdini_side.tools.pdg import _pdg_output_list, _pdg_workitems
+
+    listed = _pdg_workitems("/tasks/topnet1")
+    outputs = _pdg_output_list("/tasks/topnet1")
+    assert listed["data"]["workitems"][0]["outputs"] == ["/tmp/result.bgeo.sc"]
+    assert outputs["data"]["outputs"] == ["/tmp/result.bgeo.sc"]

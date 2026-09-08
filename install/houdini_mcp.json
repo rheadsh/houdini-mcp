@@ -5,6 +5,11 @@
         { "HOUDINI_MCP_PORT": { "value": "9876" } },
         { "HOUDINI_MCP_DISPATCH_TIMEOUT": { "value": "30" } },
         { "HOUDINI_MCP_ROOT": { "value": "$HOME/houdini-mcp" } },
-        { "PYTHONPATH": { "value": "$HOUDINI_MCP_ROOT", "method": "prepend" } }
+        { "HOUDINI_MCP_DEPS": [
+            { "houdini_python == 'python3.11'": "$HOUDINI_MCP_ROOT/.deps/python3.11" },
+            { "houdini_python == 'python3.13'": "$HOUDINI_MCP_ROOT/.deps/python3.13" }
+        ] },
+        { "PYTHONPATH": { "value": "$HOUDINI_MCP_ROOT", "method": "prepend" } },
+        { "PYTHONPATH": { "value": "$HOUDINI_MCP_DEPS", "method": "prepend" } }
     ]
 }

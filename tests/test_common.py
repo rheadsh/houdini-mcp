@@ -134,6 +134,19 @@ def test_set_node_parm_prefers_parm():
     assert calls == [5.0]
 
 
+def test_set_node_parm_passes_explicit_reference_behavior():
+    from houdini_side.tools.common import set_node_parm
+    calls = []
+
+    class Parm:
+        def set(self, value, *, follow_parm_reference):
+            calls.append((value, follow_parm_reference))
+
+    node = types.SimpleNamespace(parm=lambda name: Parm(), parmTuple=lambda name: None)
+    set_node_parm(node, "sizex", 5.0, follow_parm_reference=False)
+    assert calls == [(5.0, False)]
+
+
 def test_set_node_parm_falls_back_to_tuple_and_wraps_scalar():
     from houdini_side.tools.common import set_node_parm
     calls = []

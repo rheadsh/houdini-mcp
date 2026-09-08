@@ -62,3 +62,40 @@ def test_houdini_env_diagnostics(mock_hou):
     assert result["success"] is True
     assert result["data"]["houdini"]["version"] == "20.5.000"
     assert result["data"]["env"]["HOUDINI_MCP_PORT"] == "9876"
+
+
+def test_viewport_screenshot_uses_flipbook_api(tmp_path, mock_hou):
+    calls = []
+
+    class Settings:
+        def stash(self):
+            return self
+
+        def frameRange(self, value):
+            calls.append(("frame_range", value))
+
+        def outputToMPlay(self, value):
+            calls.append(("mplay", value))
+
+        def output(self, value):
+            calls.append(("output", value))
+
+    viewport = object()
+    settings = Settings()
+    viewer = type("Viewer", (), {
+        "curViewport": lambda self: viewport,
+        "flipbookSettings": lambda self: settings,
+        "flipbook": lambda self, view, options: calls.append(("flipbook", view, options)),
+    })()
+    mock_hou.isUIAvailable = lambda: True
+    mock_hou.paneTabType = type("PaneTypes", (), {"SceneViewer": "scene"})
+    mock_hou.ui.paneTabOfType = lambda pane_type: viewer
+
+    from houdini_side.tools.utils import _viewport_screenshot
+
+    target = tmp_path / "viewport.png"
+    result = _viewport_screenshot(str(target))
+    assert result["success"] is True
+    assert ("frame_range", (1.0, 1.0)) in calls
+    assert ("mplay", False) in calls
+    assert calls[-1] == ("flipbook", viewport, settings)

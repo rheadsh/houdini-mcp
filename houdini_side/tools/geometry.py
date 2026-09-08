@@ -1,7 +1,10 @@
 """SOP geometry inspection and export tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import resolve_output_path, validate_read_path, as_text, to_jsonable
+from houdini_side.tools.common import (
+    as_text, resolve_output_path, set_parm_value, to_jsonable,
+    validate_read_path,
+)
 
 
 _GEO_SUFFIXES = (".bgeo", ".bgeo.sc", ".obj", ".fbx", ".usd", ".usda", ".usdc")
@@ -201,7 +204,7 @@ def _geo_load(parent_path: str, file_path: str):
                     raise ValueError(f"Parent not found: {parent_path!r}")
                 safe_path = validate_read_path(hou, file_path)
                 file_sop = parent.createNode("file")
-                file_sop.parm("file").set(safe_path)
+                set_parm_value(file_sop.parm("file"), safe_path)
                 return ok({"node": file_sop.path(), "file": safe_path})
         return dispatch(work, label="geo_load")
     except Exception as e:

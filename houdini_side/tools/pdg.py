@@ -49,27 +49,40 @@ def _target_node(top_net_path: str, node_name: "str | None" = None):
 
 
 def _collect_work_items(target):
-    for method_name in ("workItems", "allWorkItems", "workItemList"):
-        items = _safe_call(target, method_name)
-        if items is not None:
-            return list(items)
-
-    graph = _safe_call(target, "graphContext")
-    if graph is not None:
-        for method_name in ("workItems", "allWorkItems"):
-            items = _safe_call(graph, method_name)
+    # H21/H22 expose workItems as a property on the underlying pdg.Node.
+    # Keep method-style fallbacks for older Houdini versions.
+    pdg_node = _safe_call(target, "getPDGNode")
+    for owner in (pdg_node, target):
+        if owner is None:
+            continue
+        for name in ("workItems", "allWorkItems", "workItemList"):
+            items = _safe_attr_or_call(owner, name)
             if items is not None:
-                return list(items)
+                return as_list(items)
+
+    graph = _safe_call(target, "getPDGGraphContext")
+    if graph is None:
+        graph = _safe_call(target, "graphContext")
+    if graph is not None:
+        for name in ("workItems", "allWorkItems"):
+            items = _safe_attr_or_call(graph, name)
+            if items is not None:
+                return as_list(items)
     return []
 
 
+def _file_path(value):
+    path = _safe_attr_or_call(value, "path")
+    return str(path if path is not None else value)
+
+
 def _work_item_outputs(item):
-    outputs = _safe_call(item, "outputFiles")
+    outputs = _safe_attr_or_call(item, "outputFiles")
     if outputs is None:
-        outputs = _safe_call(item, "expectedOutputFiles")
+        outputs = _safe_attr_or_call(item, "expectedOutputFiles")
     if outputs is None:
         outputs = _safe_attr_or_call(item, "outputs", [])
-    return [str(path) for path in as_list(outputs)]
+    return [_file_path(value) for value in as_list(outputs)]
 
 
 def _work_item_logs(item):
@@ -116,7 +129,11 @@ def _pdg_cook(top_net_path: str):
             node = hou.node(top_net_path)
             if node is None:
                 raise ValueError(f"TOP network not found: {top_net_path!r}")
-            node.executeGraph(block=False)
+            cook = getattr(node, "cookWorkItems", None)
+            if cook is not None:
+                cook(block=False)
+            else:
+                node.executeGraph(block=False)
             return ok({"cooking": top_net_path})
         return dispatch(work, label="pdg_cook")
     except Exception as e:
@@ -133,9 +150,17 @@ def _pdg_dirty(top_net_path: str, node_name: "str | None" = None):
                 target = net.node(node_name)
                 if target is None:
                     raise ValueError(f"TOP node {node_name!r} not found in {top_net_path!r}")
-                target.dirtyAllTasks(remove_outputs=False)
+                dirty = getattr(target, "dirtyAllWorkItems", None)
+                if dirty is not None:
+                    dirty(remove_outputs=False)
+                else:
+                    target.dirtyAllTasks(remove_outputs=False)
             else:
-                net.dirtyAllTasks(remove_outputs=False)
+                dirty = getattr(net, "dirtyAllWorkItems", None)
+                if dirty is not None:
+                    dirty(remove_outputs=False)
+                else:
+                    net.dirtyAllTasks(remove_outputs=False)
             return ok({"dirtied": node_name or top_net_path})
         return dispatch(work, label="pdg_dirty")
     except Exception as e:
@@ -161,7 +186,8 @@ def _pdg_status(top_net_path: str):
             node = hou.node(top_net_path)
             if node is None:
                 raise ValueError(f"TOP network not found: {top_net_path!r}")
-            state = str(node.cookState())
+            get_state = getattr(node, "getCookState", None)
+            state = str(get_state(False) if get_state is not None else node.cookState())
             return ok({"path": top_net_path, "state": state})
         return dispatch(work, label="pdg_status")
     except Exception as e:
@@ -177,7 +203,10 @@ def _pdg_output_list(top_net_path: str, node_name: "str | None" = None):
             target = net.node(node_name) if node_name else net
             if target is None:
                 raise ValueError(f"TOP node {node_name!r} not found")
-            outputs = [str(f) for f in target.workItemOutputFiles()]
+            outputs = []
+            for item in _collect_work_items(target):
+                outputs.extend(_work_item_outputs(item))
+            outputs = list(dict.fromkeys(outputs))
             return ok({"outputs": outputs, "count": len(outputs)})
         return dispatch(work, label="pdg_output_list")
     except Exception as e:

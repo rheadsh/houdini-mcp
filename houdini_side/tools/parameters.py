@@ -22,15 +22,17 @@ def _parm_get(node_path: str, parm_name: str):
         return err(e)
 
 
-def _parm_set(node_path: str, parm_name: str, value):
+def _parm_set(node_path: str, parm_name: str, value,
+              follow_parm_reference: bool = True):
     try:
         def work():
             with hou.undos.group("mcp: set parm"):
                 node = hou.node(node_path)
                 if node is None:
                     raise ValueError(f"Node not found: {node_path!r}")
-                set_node_parm(node, parm_name, value)
-            return ok({"node": node_path, "parm": parm_name, "value": value})
+                set_node_parm(node, parm_name, value, follow_parm_reference)
+            return ok({"node": node_path, "parm": parm_name, "value": value,
+                       "follow_parm_reference": follow_parm_reference})
         return dispatch(work, label="parm_set")
     except Exception as e:
         return err(e)
@@ -52,8 +54,11 @@ def _parm_set_many(items: list):
                     if node is None:
                         raise ValueError(f"Node not found: {node_path!r}")
                     value = item.get("value")
-                    set_node_parm(node, parm_name, value)
-                    changed.append({"node": node_path, "parm": parm_name, "value": value})
+                    follow_reference = item.get("follow_parm_reference", True)
+                    set_node_parm(node, parm_name, value, follow_reference)
+                    changed.append({"node": node_path, "parm": parm_name,
+                                    "value": value,
+                                    "follow_parm_reference": follow_reference})
                 return ok({"count": len(changed), "items": changed})
         return dispatch(work, label="parm_set_many")
     except Exception as e:
@@ -228,13 +233,18 @@ def register(app):
         return as_text(_parm_get(node_path, parm_name))
 
     @app.tool("parm_set")
-    async def parm_set(node_path: str, parm_name: str, value) -> list:
-        """Set a parameter value. Use a list for vector/tuple params like 't' or 's'."""
-        return as_text(_parm_set(node_path, parm_name, value))
+    async def parm_set(node_path: str, parm_name: str, value,
+                       follow_parm_reference: bool = True) -> list:
+        """Set a parameter value. Use a list for vector/tuple params like 't' or 's'.
+        Set follow_parm_reference=false to replace a channel reference locally."""
+        return as_text(_parm_set(
+            node_path, parm_name, value, follow_parm_reference
+        ))
 
     @app.tool("parm_set_many")
     async def parm_set_many(items: list) -> list:
-        """Set many parameter values in one undo group. items: [{node_path, parm_name, value}]."""
+        """Set many values in one undo group. Each item accepts node_path,
+        parm_name, value, and optional follow_parm_reference (default true)."""
         return as_text(_parm_set_many(items))
 
     @app.tool("parm_set_expression")

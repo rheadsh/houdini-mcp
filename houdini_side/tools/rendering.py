@@ -5,7 +5,7 @@ import uuid
 
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import as_text
+from houdini_side.tools.common import as_text, set_parm_value
 
 # Output parameter names by renderer (tried in priority order)
 _OUTPUT_PARMS = [
@@ -260,7 +260,7 @@ def _rop_set_output(rop_path: str, output_path: str):
                 for parm_name in _OUTPUT_PARMS:
                     p = node.parm(parm_name)
                     if p is not None:
-                        p.set(output_path)
+                        set_parm_value(p, output_path)
                         return ok({"path": rop_path, "output": output_path,
                                    "parm": parm_name})
                 raise ValueError(
@@ -282,7 +282,7 @@ def _rop_frame_range_override(rop_path: str, start: float, end: float):
                 # Enable frame range override
                 trange = node.parm("trange")
                 if trange:
-                    trange.set(1)
+                    set_parm_value(trange, 1)
                 f_parm = node.parmTuple("f")
                 if f_parm:
                     f_parm.set((start, end, 1))

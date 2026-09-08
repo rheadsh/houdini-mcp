@@ -24,7 +24,22 @@ def to_jsonable(value):
     return str(value)
 
 
-def set_node_parm(node, parm_name: str, value) -> None:
+def set_parm_value(parm, value, follow_parm_reference: bool = True) -> None:
+    """Set a scalar parm with explicit Houdini 22 reference semantics.
+
+    Older Houdini builds and lightweight test doubles may not accept the
+    keyword, so only fall back when the call signature rejects it.
+    """
+    try:
+        parm.set(value, follow_parm_reference=follow_parm_reference)
+    except TypeError as exc:
+        if "follow_parm_reference" not in str(exc):
+            raise
+        parm.set(value)
+
+
+def set_node_parm(node, parm_name: str, value,
+                  follow_parm_reference: bool = True) -> None:
     """Set a parm or parm tuple on a node, raising if neither exists."""
     parm = node.parm(parm_name)
     if parm is None:
@@ -33,7 +48,7 @@ def set_node_parm(node, parm_name: str, value) -> None:
             raise ValueError(f"Parameter not found: {parm_name!r}")
         pt.set(value if isinstance(value, (list, tuple)) else [value])
     else:
-        parm.set(value)
+        set_parm_value(parm, value, follow_parm_reference)
 
 
 def as_list(value) -> list:

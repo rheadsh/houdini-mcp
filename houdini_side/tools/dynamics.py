@@ -1,7 +1,7 @@
 """DOP simulation tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import as_text
+from houdini_side.tools.common import as_text, set_parm_value
 
 
 def _dop_sim_enable(dop_net_path: str, on: bool):
@@ -12,7 +12,7 @@ def _dop_sim_enable(dop_net_path: str, on: bool):
                 raise ValueError(f"DOP network not found: {dop_net_path!r}")
             p = node.parm("enabled")
             if p:
-                p.set(1 if on else 0)
+                set_parm_value(p, 1 if on else 0)
             else:
                 hou.setSimulationEnabled(on)
             return ok({"path": dop_net_path, "enabled": on})

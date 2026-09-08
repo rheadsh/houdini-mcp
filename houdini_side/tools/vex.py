@@ -1,7 +1,7 @@
 """VEX and VOP network tools."""
 import hou  # type: ignore[import-untyped]
 from houdini_side.dispatcher import dispatch, ok, err
-from houdini_side.tools.common import as_text
+from houdini_side.tools.common import as_text, set_parm_value
 
 
 def _vex_run(code: str, context: str = "sop"):
@@ -139,7 +139,7 @@ def _vop_snippet_set(snippet_node_path: str, code: str):
                         f"No 'snippet' or 'code' parm on {snippet_node_path!r}. "
                         "Use parm_set for other parm names."
                     )
-                p.set(code)
+                set_parm_value(p, code)
                 return ok({"set_on": snippet_node_path, "parm": p.name()})
         return dispatch(work, label="vop_snippet_set")
     except Exception as e:
